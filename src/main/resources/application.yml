@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: repayment-backend
+  config:
+    # docker-compose.yml과 같은 .env를 읽는다. 없으면(CI·테스트) 무시되고 아래 기본값이 쓰인다.
+    import: optional:file:.env[.properties]
+  profiles:
+    default: local
+  datasource:
+    url: jdbc:mysql://localhost:${MYSQL_PORT:3306}/${MYSQL_DATABASE:repayment}?connectionTimeZone=Asia/Seoul&characterEncoding=UTF-8
+    username: ${MYSQL_USER:repayment}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    # 테이블이 이미 있는 DB에 처음 붙으면 V0을 적용된 것으로 본다. 빈 DB는 V0부터 실행한다.
+    baseline-version: 0
+    # 공통(운영 포함)은 스키마만. 샘플 데이터는 프로필별 파일에서 location을 추가한다.
+    locations: classpath:db/migration
+  batch:
+    jdbc:
+      # 메타 테이블은 Flyway(V2__spring_batch_schema.sql)가 만든다.
+      initialize-schema: never
+    job:
+      # 기동 시 Job을 자동 실행하지 않는다.
+      enabled: false
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true

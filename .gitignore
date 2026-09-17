@@ -1,0 +1,17 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+out/
+
+# 로컬 환경 변수 (비밀값) — .env.sample만 커밋한다
+.env
+
+# OS
+.DS_Store
+Thumbs.db
