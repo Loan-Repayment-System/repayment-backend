@@ -25,7 +25,7 @@
 
 ### 완료 기준
 
-1. `cp .env.sample .env && docker compose up -d && ./gradlew bootRun` → MySQL에 도메인 테이블 14개,
+1. `cp .env.sample .env && docker compose up -d && ./gradlew bootRun` → MySQL에 도메인 테이블 15개,
    Spring Batch 메타 테이블, 코드성 데이터가 생성된다
 2. `./gradlew build`가 docker compose 없이(Testcontainers) 통과한다
 3. GitHub Actions CI가 `main`, `develop` 양쪽에서 통과한다
@@ -62,7 +62,7 @@ repayment-backend/
 │  ├─ PULL_REQUEST_TEMPLATE.md
 │  └─ workflows/ci.yml
 ├─ docs/
-│  ├─ erd.md                     # 테이블 14개 목록 + 도메인 구분
+│  ├─ erd.md                     # 테이블 15개 목록 + 도메인 구분
 │  ├─ reference/                 # LoanServicing/docs에서 원본 그대로 복사
 │  │  ├─ table_definition.md
 │  │  ├─ ddl.sql
@@ -202,7 +202,7 @@ spring:
 
 | 파일 | 내용 | 변환 규칙 |
 |---|---|---|
-| `V0__init.sql` | 테이블 14개 CREATE | 원본의 생성 순서(코드성 → 핵심 → 운영 → 상환)와 컬럼·제약을 그대로 유지. `DROP TABLE IF EXISTS` 제거. 각 테이블에 `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` 명시 |
+| `V0__init.sql` | 테이블 15개 CREATE | 원본의 생성 순서(코드성 → 핵심 → 운영 → 상환)와 컬럼·제약을 그대로 유지. `DROP TABLE IF EXISTS` 제거. 각 테이블에 `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` 명시 |
 | `V1__code_table_data.sql` | 코드성 테이블 초기 데이터 | 원본 5번 섹션 INSERT를 그대로 옮김 (id는 enum과 1:1 — 순서 변경 금지) |
 | `V2__spring_batch_schema.sql` | Spring Batch 메타 테이블 | 사용 중인 spring-batch-core jar의 `org/springframework/batch/core/schema-mysql.sql`을 그대로 복사 |
 
@@ -240,7 +240,7 @@ public class TestcontainersConfig {
 | 테스트 | 프로필 | 검증 내용 |
 |---|---|---|
 | `RepaymentApplicationTests` | test | 컨텍스트 기동 (MyBatis·Flyway·Batch 배선) |
-| `FlywayMigrationTest` | test | `flyway_schema_history`에 V0·V1·V2가 성공으로 기록됨 / 도메인 테이블 14개 존재 / `BATCH_JOB_INSTANCE` 등 Batch 메타 테이블 존재 / 코드성 데이터 건수(interest_type 2, repayment_method 3, loan_status 4, repayment_schedule_status 4, delinquency_status 2, delinquency_reason 7)와 id·name이 원본과 일치 |
+| `FlywayMigrationTest` | test | `flyway_schema_history`에 V0·V1·V2가 성공으로 기록됨 / 도메인 테이블 15개 존재 / `BATCH_JOB_INSTANCE` 등 Batch 메타 테이블 존재 / 코드성 데이터 건수(interest_type 2, repayment_method 3, loan_status 4, repayment_schedule_status 4, delinquency_status 2, delinquency_reason 7)와 id·name이 원본과 일치 |
 | `LocalSeedLocationTest` | local | `db/seed/local` location이 포함된 상태로 기동과 마이그레이션이 성공함 |
 
 ### 7.3 규칙 (AGENTS.md에 명시)
@@ -272,7 +272,7 @@ public class TestcontainersConfig {
 | `AGENTS.md` | 코드 컨벤션·작업 플로우 정본: 기술 스택, 패키지 구조, Flyway 규칙(§6), 금액 `BigDecimal`, 테스트 규칙(§7.3), 비밀값 관리, Git/GitHub 플로우, 라벨 목록 |
 | `CLAUDE.md` | `@AGENTS.md` import + Claude Code 전용 메모 |
 | `CONTRIBUTING.md` | 브랜치 전략(`develop` 기본·분기, Squash 머지, 릴리스는 `develop`→`main` Merge commit), 브랜치 네이밍, 커밋 컨벤션(`type: 한국어 설명`), PR·리뷰 규칙 |
-| `docs/erd.md` | 테이블 14개 목록·도메인 구분 표, 상세는 `docs/reference/table_definition.md` 참조 |
+| `docs/erd.md` | 테이블 15개 목록·도메인 구분 표, 상세는 `docs/reference/table_definition.md` 참조 |
 | `docs/reference/*` | LoanServicing `docs/`의 파일 4개를 **수정 없이** 복사 |
 | `.github/ISSUE_TEMPLATE/*`, `PULL_REQUEST_TEMPLATE.md` | 이전 repayment-backend와 동일 (config.yml의 링크만 새 레포 기준) |
 | `LICENSE` | MIT, Copyright (c) 2026 Loan-Repayment-System |
