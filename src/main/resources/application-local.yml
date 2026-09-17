@@ -1,0 +1,9 @@
+spring:
+  flyway:
+    # 환경별 seed 폴더를 정확히 지정한다. classpath:db/seed로 주면 하위 폴더(다른 환경)까지 전부 적용된다.
+    # seed 버전은 V900번대를 쓴다 — 버전 번호는 모든 location을 통틀어 겹치면 안 된다.
+    locations:
+      - classpath:db/migration
+      - classpath:db/seed/local
+    # seed(V900)가 적용된 뒤 추가되는 스키마 버전(V3..)이 순서 역전으로 막히지 않게 한다.
+    out-of-order: true

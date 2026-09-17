@@ -1,0 +1,27 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: repayment-mysql
+    restart: unless-stopped
+    # 서버 타임존을 KST로 고정한다. 이름(Asia/Seoul)을 쓰면 공식 이미지에 타임존 테이블이 없어 기동에 실패하므로
+    # 오프셋을 쓴다(한국은 서머타임이 없다). 값을 바꾸면 `docker compose down -v`로 재생성해야 반영된다.
+    command: --default-time-zone=+09:00
+    environment:
+      TZ: Asia/Seoul
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    # 스키마·데이터는 여기서 넣지 않는다. 앱이 뜰 때 Flyway가 적용한다.
+    volumes:
+      - repayment-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  repayment-mysql-data:
