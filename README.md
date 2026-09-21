@@ -108,7 +108,7 @@ repayment-backend/
 │  ├─ RepaymentApplication.java
 │  ├─ domain/{customer,product,loan,repayment}/
 │  ├─ batch/{job,step,reader,writer,listener}/
-│  └─ global/{config,exception,util}/
+│  └─ global/{common,config,exception,util}/
 ├─ src/main/resources/
 │  ├─ application.yml, application-local.yml
 │  ├─ mapper/                       # MyBatis XML
@@ -123,7 +123,7 @@ repayment-backend/
 
 ## 문서
 
-- [AGENTS.md](./AGENTS.md) — 코드 컨벤션과 작업 플로우
+- [CLAUDE.md](./CLAUDE.md) — 코드 컨벤션과 작업 플로우의 정본
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — 브랜치 전략, 커밋·PR 규칙
 - [docs/erd.md](./docs/erd.md) — 테이블 목록과 관계
 - [docs/reference/](./docs/reference) — 테이블 정의서, 원본 DDL, 가계대출 상품설명서, 상환금액 계산기 검증 기록
