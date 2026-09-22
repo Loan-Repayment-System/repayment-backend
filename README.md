@@ -106,9 +106,10 @@ src/main/resources/db/
 repayment-backend/
 ├─ src/main/java/com/repayment/
 │  ├─ RepaymentApplication.java
-│  ├─ domain/{customer,product,loan,repayment}/
-│  ├─ batch/{job,step,reader,writer,listener}/
-│  └─ global/{common,config,exception,util}/
+│  ├─ api/{customer,product,loan,repayment}/        # HTTP 표면
+│  ├─ batch/{job,step,reader,writer,listener}/      # 배치 표면
+│  ├─ domain/{customer,product,loan,repayment}/     # 업무 로직 (api·batch가 공유)
+│  └─ global/{code,config,dto,exception,util}/
 ├─ src/main/resources/
 │  ├─ application.yml, application-local.yml
 │  ├─ mapper/                       # MyBatis XML
