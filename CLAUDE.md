@@ -214,6 +214,59 @@ src/main/resources/mapper/{도메인}/{대상}Mapper.xml
 - 통합 테스트가 컨테이너 기동에서 실패하면 Docker Desktop이 켜져 있는지부터 확인한다.
 - 데이터를 바꾸는 통합 테스트는 `@Transactional`로 롤백한다. 배치 Job 테스트는 `@Transactional`을 쓸 수 없으니 테스트 안에서 정리한다.
 
+### 작성 순서
+
+테스트는 요구사항과 결정 이력을 담은 문서다. 케이스를 사람이 검토하기 전에는 테스트 코드를 쓰지 않는다.
+
+1. 코드를 쓰기 전에 케이스 목록을 먼저 제안한다. 케이스마다 상황(given), 동작(when), 기대 결과(then)를 적는다.
+2. 사람이 케이스를 검토하고 확정할 때까지 기다린다. 추가·삭제·수정된 케이스는 반영해서 목록을 다시 보여준다.
+3. 확정된 케이스만 코드로 옮긴다. 구현 중에 새 케이스가 필요해지면 멈추고 1번부터 다시 한다.
+
+```
+| # | 상황 (given) | 동작 (when) | 기대 결과 (then) |
+|---|---|---|---|
+| 1 | 대출이자율 15% | 연체 이자율을 계산한다 | 17% |
+```
+
+### BDD 스타일
+
+- 테스트 본문은 `// given`, `// when`, `// then` 주석으로 나눈다. `when`은 한 번만 호출한다.
+- Mockito는 BDDMockito를 쓴다. `when(...).thenReturn(...)` 대신 `given(...).willReturn(...)`, `verify(...)` 대신 `then(...).should()`를 쓴다.
+- 같은 상황의 케이스는 `@Nested` 클래스로 묶는다.
+
+### @DisplayName
+
+- 테스트 클래스, `@Nested` 클래스, 테스트 메서드에 모두 `@DisplayName`을 붙인다. 테스트 결과를 위에서부터 읽으면 명세처럼 읽혀야 한다.
+- 테스트 클래스는 대상, `@Nested`는 상황("~일 때"), 메서드는 조건과 결과를 담은 문장("~하면 ~한다")으로 적는다.
+- 숫자와 결과를 문장에 그대로 적는다. "정상 동작한다", "예외가 발생한다"처럼 무엇인지 알 수 없는 문장은 쓰지 않는다.
+- 근거(요구사항 번호, 약관 조항)는 메서드 위 한 줄 주석으로 남긴다.
+- 메서드 이름은 §3 네이밍을 따른다.
+
+```java
+@DisplayName("연체 이자율 계산")
+class DelinquentRateCalculatorTest {
+
+    @Nested
+    @DisplayName("대출이자율이 최고 연체 이자율(15%) 이상일 때")
+    class 대출이자율이_15퍼센트_이상 {
+
+        // DELQ-01, 상품설명서 6-가
+        @Test
+        @DisplayName("대출이자율 15%면 연체 이자율은 2%를 더한 17%다")
+        void 대출이자율에_2퍼센트를_더한다() {
+            // given
+            BigDecimal loanRate = new BigDecimal("15");
+
+            // when
+            BigDecimal result = calculator.calculate(loanRate);
+
+            // then
+            assertThat(result).isEqualByComparingTo("17");
+        }
+    }
+}
+```
+
 ---
 
 ## 14. 참고 자료
