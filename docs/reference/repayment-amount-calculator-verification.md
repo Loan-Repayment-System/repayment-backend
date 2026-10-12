@@ -13,7 +13,7 @@
 | 공개 API | `calculate(RepaymentMethod method, BigDecimal balance, BigDecimal rate, int remainingInstallments, BigDecimal originalPrincipal, int totalInstallments)` |
 | 반환값 | `RepaymentAmount(principal, interest)` — `CoreBanking/src/main/java/hello/corebanking/domain/repayment/dto/RepaymentAmount.java` |
 | 검증한 상환방법 3종 | `LEVEL_PAYMENT`(원리금균등), `EQUAL_PRINCIPAL`(원금균등), `BULLET`(만기일시상환) — `domain/product/entity/RepaymentMethod` |
-| 반올림 규칙 | scale 4, `RoundingMode.HALF_UP` (`docs/ddl.sql`의 `DECIMAL(23,4)` 금액 컬럼 정밀도에 맞춤) |
+| 반올림 규칙 | scale 4, `RoundingMode.HALF_UP` (`V0__init.sql`의 `DECIMAL(23,4)` 금액 컬럼 정밀도에 맞춤) |
 
 ---
 

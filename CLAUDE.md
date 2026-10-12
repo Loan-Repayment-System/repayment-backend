@@ -166,7 +166,9 @@ src/main/resources/mapper/{도메인}/{대상}Mapper.xml
 - 이자, 원금 등 계산한 금액은 원 미만을 버린다(`setScale(0, RoundingMode.DOWN)`). 중간 계산에서는 버리지 않고 저장 직전에 한 번만 버린다.
 - `BigDecimal`은 `equals` 대신 `compareTo`로 비교한다.
 - `created_at`, `updated_at`은 DB가 채우므로 INSERT, UPDATE 문에 적지 않는다.
-- 상태나 잔액이 바뀌면 이력 테이블에 남긴다. 변경과 이력 INSERT는 한 트랜잭션으로 묶는다.
+- 대출 상태 이력은 판정 테이블 `loan_status_judgment`에 남는다. 판정할 때마다 1행을 쌓고 고치지 않는다.
+- 잔액이나 상태를 바꿀 때는 그 근거 기록(판정, 납부, 연체금)의 INSERT와 한 트랜잭션으로 묶는다.
+- 기록 테이블(판정, 납부, 거래, 연체금 계산 근거, 처리 실패 내용)은 고치거나 지우지 않는다. 누적 금액(`paid_*`)과 상태만 바꾼다.
 - 코드성 테이블의 id는 enum과 1:1이다. `V1__code_table_data.sql`의 id를 바꾸지 않고, 코드를 추가할 때는 새 마이그레이션과 enum을 함께 추가한다.
 
 ---
