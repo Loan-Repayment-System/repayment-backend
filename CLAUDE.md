@@ -35,18 +35,18 @@ docker compose up -d      # 로컬 MySQL (빈 DB. 스키마는 앱이 뜰 때 Fl
 com.repayment
 ├─ RepaymentApplication
 ├─ api/                             # 백엔드
-│  └─ {customer,product,loan,repayment}/
+│  └─ {도메인}/
 │     └─ {대상}Controller
 ├─ batch/                           # 배치
 │  └─ {job,step,reader,writer,listener}/
 ├─ domain/                          # api·batch가 공유
-│  └─ {customer,product,loan,repayment}/
+│  └─ {도메인}/
 │     ├─ service/
 │     ├─ mapper/                    # MyBatis 인터페이스
-│     ├─ dto/{request,response}/    # 코드성 enum도 여기
+│     ├─ dto/{request,response}/
 │     └─ exception/                 # 구체 예외 클래스 (§6)
 └─ global/
-   ├─ code/                         # ErrorCode enum
+   ├─ code/                         # ErrorCode enum, 코드성 테이블 enum
    ├─ config/
    ├─ dto/                          # ApiResponse
    ├─ exception/                    # BusinessException, 범주 예외, GlobalExceptionHandler
@@ -55,6 +55,8 @@ com.repayment
 src/main/resources/mapper/{도메인}/{대상}Mapper.xml
 ```
 
+- 도메인은 업무 기능 단위로 나누고, 구현하면서 정한다. 테이블 단위로 나누지 않는다.
+- 코드성 테이블 enum은 여러 기능이 함께 쓰므로 도메인이 아니라 `global/code/`에 모은다.
 - `domain`은 `api`, `batch`를 참조하지 않는다.
 - 서비스는 인터페이스 없이 클래스 하나로 만든다.
 
@@ -69,7 +71,7 @@ src/main/resources/mapper/{도메인}/{대상}Mapper.xml
 | 매퍼 인터페이스 / XML | `{대상}Mapper` / `resources/mapper/{도메인}/{대상}Mapper.xml` | `mapper/loan/LoanAccountMapper.xml` |
 | 요청 DTO | `{동작}{대상}Request` | `CreateRepaymentRequest` |
 | 응답 DTO | `{대상}{용도}Response` | `LoanAccountDetailResponse` |
-| 조회 조건 | `{대상}SearchCondition` | `RepaymentHistorySearchCondition` |
+| 조회 조건 | `{대상}SearchCondition` | `RepaymentSearchCondition` |
 | 에러 코드 | 전역 단일 enum `ErrorCode`의 상수 | `ErrorCode.LOAN_ACCOUNT_NOT_FOUND` |
 | 범주 예외 | `{범주}Exception` | `NotFoundException` |
 | 구체 예외 | `{맥락}Exception` — 이름이 맥락과 1:1 | `LoanAccountNotFoundException` |
@@ -102,7 +104,7 @@ src/main/resources/mapper/{도메인}/{대상}Mapper.xml
 실패 응답의 `code`·`message`·상태코드는 예외 클래스가 아니라 `global/code/ErrorCode` enum 하나가 관리한다.
 
 - `code`는 enum 상수 이름을 그대로 쓴다.
-- 주석으로 구역(공통 / 회원 / 대출 / 상환)을 나눈다.
+- 주석으로 구역을 나눈다. 맨 위는 공통이고, 그 아래는 도메인 패키지와 같은 단위다.
 - `message`는 사용자에게 그대로 보일 문구로 적는다.
 
 ---
@@ -154,8 +156,15 @@ src/main/resources/mapper/{도메인}/{대상}Mapper.xml
 - `BigDecimal`은 `equals` 대신 `compareTo`로 비교한다.
 - `created_at`, `updated_at`은 DB가 채우므로 INSERT, UPDATE 문에 적지 않는다.
 - 대출 상태 이력은 판정 테이블 `loan_status_judgment`에 남는다. 판정할 때마다 1행을 쌓고 고치지 않는다.
-- 잔액이나 상태를 바꿀 때는 그 근거 기록(판정, 납부, 연체금)의 INSERT와 한 트랜잭션으로 묶는다.
-- 기록 테이블(판정, 납부, 거래, 연체금 계산 근거, 처리 실패 내용)은 고치거나 지우지 않는다. 누적 금액(`paid_*`)과 상태만 바꾼다.
+- 잔액이나 상태를 바꿀 때는 그 근거 기록(판정, 납부, 연체금, 거래)의 INSERT와 한 트랜잭션으로 묶는다.
+- 기록 테이블은 지우지 않고, 아래 컬럼 말고는 고치지 않는다. 충당 상세(`*_repayment`)의 `paid_*`는 그 상환 1건의 충당 금액이라 누적이 아니다.
+
+  | 테이블 | 바꿔도 되는 컬럼 |
+  |---|---|
+  | `loan_status_judgment`, `account_transaction`, `base_rate_history`, `repayment`, `installment_repayment`, `acceleration_repayment`, `maturity_overdue_repayment` | 없음 |
+  | `installment_delinquency_charge`, `acceleration_daily_charge`, `maturity_overdue_daily_charge` | `paid_*`(누적), `delinquency_status_id` |
+  | `loan_acceleration`, `loan_maturity_overdue` | `paid_*`(누적) |
+  | `processing_failure` | `resolved_at`, `resolution_note` |
 - 코드성 테이블의 id는 enum과 1:1이다. `V1__code_table_data.sql`의 id를 바꾸지 않고, 코드를 추가할 때는 새 마이그레이션과 enum을 함께 추가한다.
 
 ---
@@ -280,15 +289,16 @@ class DelinquentRateCalculatorTest {
 
 ### 작업 순서
 
-1~5단계는 확인 없이 이어서 진행한다.
+1~6단계는 확인 없이 이어서 진행한다.
 
 1. 이슈 등록: `gh issue create --repo Loan-Repayment-System/repayment-backend`
 2. 브랜치 생성: `git checkout develop && git pull origin develop && git checkout -b {type}/{설명}`
 3. 구현 후 `./gradlew build`가 통과하는지 확인한다(Docker 필요).
 4. 커밋
 5. push: `git push -u origin {브랜치명}`
-6. PR은 사람이 만든다. push까지 하고 멈춘 뒤 브랜치명과 변경 요약만 알린다.
-   사용자가 PR 본문을 주면 그대로 `gh pr create --base develop`으로 올리는 건 된다.
+6. PR 생성: `.github/PULL_REQUEST_TEMPLATE.md` 형식으로 본문을 쓰고 `gh pr create --base develop`으로 올린다.
+   제목은 `[#이슈번호] type: 한국어 설명`이다. PR 링크를 알리고 멈춘다. 본문 수정과 병합은 사람이 한다.
+   PR 본문에 'Generated with Claude Code' 같은 문구는 붙이지 않는다.
 
 큰 작업은 상위 이슈나 마일스톤으로 묶고, 하위 작업마다 이 순서를 반복한다.
 
