@@ -93,25 +93,11 @@ src/main/resources/mapper/{도메인}/{대상}Mapper.xml
 
 ## 5. 응답 포맷
 
-`/api` 아래 모든 응답은 `ApiResponse<T>`로 감싸서 보낸다.
+`/api` 아래 모든 응답은 `global/dto/ApiResponse<T>`로 감싸서 보낸다.
 
-```json
-// 성공 — code·message 없이 data만 담는다
-{ "success": true, "data": [ ... ] }
-
-// 실패 — data는 기본적으로 null이다
-{ "success": false, "code": "LOAN_ACCOUNT_NOT_FOUND",
-  "message": "대출 계좌를 찾을 수 없습니다.", "data": null }
-
-// 실패 + 부가 데이터 — 필요할 때만 data를 채운다
-{ "success": false, "code": "REPAYMENT_EXCEEDS_BALANCE",
-  "message": "상환금액이 잔액을 초과합니다.", "data": { "remainingBalance": "1000000.0000" } }
-
-// 검증 실패 — errors가 추가된다 (이때만 나온다)
-{ "success": false, "code": "INVALID_INPUT_VALUE",
-  "message": "입력값이 올바르지 않습니다.", "data": null,
-  "errors": [ { "field": "paidAmount", "reason": "..." } ] }
-```
+- 성공은 `ApiResponse.ok(data)`다. `code`·`message` 없이 `{ success, data }`만 나간다.
+- 실패는 `{ success, code, message, data }`다. `data`는 기본 `null`이고, 부가 데이터가 필요할 때만 예외에 담아 채운다.
+- 검증 실패일 때만 `errors: [{ field, reason }]`가 붙는다.
 
 실패 응답의 `code`·`message`·상태코드는 예외 클래스가 아니라 `global/code/ErrorCode` enum 하나가 관리한다.
 
@@ -134,6 +120,7 @@ src/main/resources/mapper/{도메인}/{대상}Mapper.xml
 - 범주는 미리 만들지 않는다. 여러 예외를 한 타입으로 잡아야 할 때 추가한다.
 - 던질 때는 구체 예외만 쓴다.
 - 금액, ID처럼 원인 추적에 필요한 값은 생성자로 받는다.
+- 실패 응답의 `data`에 담을 값은 `BusinessException(ErrorCode, Object data)`로 넘긴다. 기술 예외를 감쌀 때는 `(ErrorCode, Throwable cause)`를 쓴다.
 - 컨트롤러는 예외를 잡지 않는다. `GlobalExceptionHandler`가 잡아서 응답으로 바꾼다.
 
 ---
