@@ -1,49 +1,69 @@
 # ERD
 
 스키마의 정본은 `src/main/resources/db/migration/`의 Flyway 마이그레이션이다.
-컬럼 상세는 [table_definition.md](./reference/table_definition.md), 원본 DDL은 [ddl.sql](./reference/ddl.sql)을 참고한다.
+컬럼 상세는 [table_definition.md](./reference/table_definition.md)를 참고한다.
 
 ## 테이블 목록
 
-| No. | 테이블 | 한글명 | 도메인 패키지 | 구분 |
-|---|---|---|---|---|
-| 1 | `interest_type` | 이자종류 | `product` | 코드성 |
-| 2 | `repayment_method` | 상환방법 | `product` | 코드성 |
-| 3 | `loan_status` | 대출상태 | `loan` | 코드성 |
-| 4 | `repayment_schedule_status` | 상환스케줄상태 | `repayment` | 코드성 |
-| 5 | `delinquency_status` | 연체상태 | `repayment` | 코드성 |
-| 6 | `delinquency_reason` | 연체근거 | `repayment` | 코드성 |
-| 7 | `member` | 회원 | `customer` | 핵심 |
-| 8 | `primary_account` | 주 계좌 | `customer` | 핵심 |
-| 9 | `loan_product` | 대출상품 | `product` | 핵심 |
-| 10 | `loan_contract` | 대출계약 | `loan` | 운영 |
-| 11 | `loan_account` | 대출계좌 | `loan` | 운영 |
-| 12 | `loan_status_history` | 대출상태 이력 | `loan` | 운영 |
-| 13 | `repayment_schedule` | 상환 스케줄 | `repayment` | 상환 |
-| 14 | `repayment_history` | 상환 이력 | `repayment` | 상환 |
-| 15 | `delinquency_history` | 연체 이력 | `repayment` | 상환 |
+| 구분 | 테이블 | 한글명 |
+|---|---|---|
+| 회원·계좌 | `member` | 회원 |
+| | `account` | 계좌 (`member_id`가 NULL이면 은행 수납 계좌) |
+| | `account_transaction` | 계좌 거래 기록 |
+| 상품·대출 | `loan_product` | 대출상품 |
+| | `loan_contract` | 대출계약 |
+| | `loan_account` | 대출계좌 |
+| | `repayment_schedule` | 상환 스케줄(회차) |
+| | `base_rate_history` | 기준금리 이력 |
+| 판정·연체 | `loan_status_judgment` | 대출 상태 판정 |
+| | `installment_delinquency_charge` | 회차 연체금 (판정 1·5) |
+| | `loan_acceleration` | 기한이익상실 (판정 2·3·6·7) |
+| | `acceleration_daily_charge` | 기한이익상실 하루 기록 |
+| | `loan_maturity_overdue` | 만기 경과 (판정 4) |
+| | `maturity_overdue_daily_charge` | 만기 경과 하루 기록 |
+| 납부 | `repayment` | 상환 1건 |
+| | `installment_repayment` | 회차 충당 상세 |
+| | `acceleration_repayment` | 기한이익상실 충당 상세 |
+| | `maturity_overdue_repayment` | 만기 경과 충당 상세 |
+| 일마감 | `daily_closing` | 일마감 실행 기록 |
+| | `processing_failure` | 처리 실패 기록 |
+
+코드성 테이블 13개: `interest_type`, `repayment_method`, `loan_status`, `repayment_schedule_status`,
+`loan_judgment_status`, `judgment_source`, `delinquency_status`, `account_status`, `transaction_type`,
+`base_rate_index`, `repayment_channel`, `daily_closing_status`, `failure_type`
 
 - 코드성 테이블의 id는 enum과 1:1로 대응한다. 초기 데이터는 `V1__code_table_data.sql`에 있다.
+- `loan_judgment_status`의 id는 판정 번호와 같다(0 정상, 1~7 연체 근거, 8 완제).
 - Spring Batch 메타 테이블(`BATCH_*` 9개)은 `V2__spring_batch_schema.sql`이 만든다.
 
 ## 관계
 
 ```mermaid
 erDiagram
-    member ||--|| primary_account : "보유"
+    member |o--o{ account : "보유"
     member ||--o{ loan_contract : "체결"
-    interest_type ||--o{ loan_product : ""
-    repayment_method ||--o{ loan_product : ""
     loan_product ||--o{ loan_contract : ""
     loan_contract ||--|| loan_account : "개설"
-    primary_account ||--o{ loan_account : "출금 계좌"
-    loan_account ||--o{ loan_status_history : ""
-    loan_status ||--o{ loan_status_history : ""
+    account ||--o{ loan_account : "상환 계좌"
+    account ||--o{ account_transaction : ""
     loan_account ||--o{ repayment_schedule : ""
-    repayment_schedule_status ||--o{ repayment_schedule : ""
-    repayment_schedule ||--o{ delinquency_history : ""
-    delinquency_status ||--o{ delinquency_history : ""
-    delinquency_reason ||--o{ delinquency_history : ""
-    repayment_schedule ||--o{ repayment_history : ""
-    delinquency_history |o--o{ repayment_history : ""
+    loan_account ||--o{ loan_status_judgment : "상태 판정"
+    repayment ||--o| loan_status_judgment : "상환 후 판정"
+    repayment_schedule ||--o{ installment_delinquency_charge : ""
+    loan_account ||--o| loan_acceleration : "기한이익상실"
+    loan_acceleration ||--o{ acceleration_daily_charge : ""
+    loan_account ||--o| loan_maturity_overdue : "만기 경과"
+    loan_maturity_overdue ||--o{ maturity_overdue_daily_charge : ""
+    loan_account ||--o{ repayment : "납부"
+    repayment ||--o{ installment_repayment : ""
+    repayment_schedule ||--o{ installment_repayment : ""
+    repayment ||--o| acceleration_repayment : ""
+    loan_acceleration ||--o{ acceleration_repayment : ""
+    repayment ||--o| maturity_overdue_repayment : ""
+    loan_maturity_overdue ||--o{ maturity_overdue_repayment : ""
+    loan_account |o--o{ processing_failure : ""
+    repayment_schedule |o--o{ processing_failure : ""
 ```
+
+- 관계선이 없는 테이블: `base_rate_history`, `daily_closing`
+- 코드성 테이블과의 관계는 생략했다.
