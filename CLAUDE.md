@@ -43,6 +43,7 @@ com.repayment
 │  └─ {도메인}/
 │     ├─ service/
 │     ├─ mapper/                    # MyBatis 인터페이스
+│     ├─ client/                    # 외부 API 클라이언트 (그 도메인만 쓰는 것)
 │     ├─ dto/{request,response}/
 │     └─ exception/                 # 구체 예외 클래스 (§6)
 └─ global/

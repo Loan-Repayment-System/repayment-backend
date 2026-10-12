@@ -25,6 +25,12 @@ spring:
       # 기동 시 Job을 자동 실행하지 않는다.
       enabled: false
 
+bok:
+  api:
+    base-url: https://ecos.bok.or.kr/api
+    # 한국은행 ECOS 인증키. .env의 BOK_API_KEY에서 읽는다 (커밋하지 않는다).
+    auth-key: ${BOK_API_KEY:}
+
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
   # 코드성 enum ↔ id 변환 (CodeEnumTypeHandler)
