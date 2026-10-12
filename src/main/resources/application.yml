@@ -27,5 +27,7 @@ spring:
 
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
+  # 코드성 enum ↔ id 변환 (CodeEnumTypeHandler)
+  type-handlers-package: com.repayment.global.config.typehandler
   configuration:
     map-underscore-to-camel-case: true
