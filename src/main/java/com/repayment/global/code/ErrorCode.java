@@ -21,6 +21,10 @@ public enum ErrorCode {
     // 기준금리
     BASE_RATE_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "기준금리를 조회하지 못했습니다."),
     BASE_RATE_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "적용할 기준금리를 찾지 못했습니다."),
+
+    // 대출 스케줄
+    REPAYMENT_SCHEDULE_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "상환 회차를 찾지 못했습니다."),
+    INVALID_INSTALLMENT_CONFIRM_ORDER(HttpStatus.INTERNAL_SERVER_ERROR, "앞 회차를 먼저 확정해야 합니다."),
     ;
 
     private final HttpStatus status;
