@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.baserate.mapper.BaseRateHistoryMapper">
+
+    <select id="findAnnouncedDates" resultType="java.time.LocalDate">
+        SELECT announced_date
+        FROM base_rate_history
+        WHERE announced_date BETWEEN #{startDate} AND #{endDate}
+    </select>
+
+    <insert id="insertBaseRates">
+        INSERT INTO base_rate_history (announced_date, rate)
+        VALUES
+        <foreach collection="rates" item="rate" separator=",">
+            (#{rate.announcedDate}, #{rate.rate})
+        </foreach>
+    </insert>
+</mapper>
