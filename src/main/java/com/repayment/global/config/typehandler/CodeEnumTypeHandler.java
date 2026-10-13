@@ -1,7 +1,6 @@
 package com.repayment.global.config.typehandler;
 
 import com.repayment.global.code.AccountStatus;
-import com.repayment.global.code.BaseRateIndex;
 import com.repayment.global.code.CodeEnum;
 import com.repayment.global.code.DailyClosingStatus;
 import com.repayment.global.code.DelinquencyStatus;
@@ -37,7 +36,6 @@ import java.sql.SQLException;
         DelinquencyStatus.class,
         AccountStatus.class,
         TransactionType.class,
-        BaseRateIndex.class,
         RepaymentChannel.class,
         DailyClosingStatus.class,
         FailureType.class

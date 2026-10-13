@@ -14,7 +14,7 @@
 | | `loan_contract` | 대출계약 |
 | | `loan_account` | 대출계좌 |
 | | `repayment_schedule` | 상환 스케줄(회차) |
-| | `base_rate_history` | 기준금리 이력 |
+| | `base_rate_history` | 기준금리(KORIBOR 12개월) 이력 |
 | 판정·연체 | `loan_status_judgment` | 대출 상태 판정 |
 | | `installment_delinquency_charge` | 회차 연체금 (판정 1·5) |
 | | `loan_acceleration` | 기한이익상실 (판정 2·3·6·7) |
@@ -28,9 +28,9 @@
 | 일마감 | `daily_closing` | 일마감 실행 기록 |
 | | `processing_failure` | 처리 실패 기록 |
 
-코드성 테이블 13개: `interest_type`, `repayment_method`, `loan_status`, `repayment_schedule_status`,
+코드성 테이블 12개: `interest_type`, `repayment_method`, `loan_status`, `repayment_schedule_status`,
 `loan_judgment_status`, `judgment_source`, `delinquency_status`, `account_status`, `transaction_type`,
-`base_rate_index`, `repayment_channel`, `daily_closing_status`, `failure_type`
+`repayment_channel`, `daily_closing_status`, `failure_type`
 
 - 코드성 테이블의 id는 enum과 1:1로 대응한다. 초기 데이터는 `V1__code_table_data.sql`에 있다.
 - `loan_judgment_status`의 id는 판정 번호와 같다(0 정상, 1~7 연체 근거, 8 완제).
