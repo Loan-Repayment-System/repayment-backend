@@ -8,6 +8,7 @@
         SELECT rs.repayment_schedule_id,
                rs.loan_account_id,
                rs.installment_no,
+               rs.repayment_schedule_status_id,
                rs.scheduled_date,
                lp.interest_type_id,
                lp.repayment_method_id,

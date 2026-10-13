@@ -67,7 +67,7 @@ class RepaymentScheduleMapperIntegrationTest {
     class 확정_정보_조회 {
 
         @Test
-        @DisplayName("3회차를 조회하면 앞 회차 원금 합 1,950,458원, 예정일, 상품·계약 값, 마지막 확정 회차 2가 나온다")
+        @DisplayName("3회차를 조회하면 앞 회차 원금 합 1,950,458원, 상태 예정, 예정일, 상품·계약 값, 마지막 확정 회차 2가 나온다")
         void 앞_회차_원금만_더한다() {
             // given
             long repaymentScheduleId = thirdScheduleId;
@@ -82,6 +82,7 @@ class RepaymentScheduleMapperIntegrationTest {
             assertThat(target.getRepaymentScheduleId()).isEqualTo(thirdScheduleId);
             assertThat(target.getLoanAccountId()).isEqualTo(loanAccountId);
             assertThat(target.getInstallmentNo()).isEqualTo(3);
+            assertThat(target.getRepaymentScheduleStatusId()).isEqualTo(RepaymentScheduleStatus.SCHEDULED);
             assertThat(target.getScheduledDate()).isEqualTo(LocalDate.of(2026, 12, 10));
             assertThat(target.getInterestTypeId()).isEqualTo(InterestType.FIXED);
             assertThat(target.getRepaymentMethodId()).isEqualTo(RepaymentMethod.EQUAL_PRINCIPAL_INTEREST);

@@ -2,6 +2,7 @@ package com.repayment.domain.schedule.dto.response;
 
 import com.repayment.global.code.InterestType;
 import com.repayment.global.code.RepaymentMethod;
+import com.repayment.global.code.RepaymentScheduleStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,6 +23,7 @@ public class RepaymentScheduleConfirmTargetResponse {
     private Long repaymentScheduleId;
     private Long loanAccountId;
     private Integer installmentNo;
+    private RepaymentScheduleStatus repaymentScheduleStatusId;
     private LocalDate scheduledDate;
     private InterestType interestTypeId;
     private RepaymentMethod repaymentMethodId;

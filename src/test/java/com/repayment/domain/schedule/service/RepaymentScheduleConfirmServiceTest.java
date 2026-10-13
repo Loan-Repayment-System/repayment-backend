@@ -4,7 +4,9 @@ import com.repayment.domain.baserate.exception.BaseRateNotFoundException;
 import com.repayment.domain.schedule.dto.response.AppliedRateResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentAmountResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleConfirmTargetResponse;
+import com.repayment.domain.schedule.exception.ConfirmDateOutOfRangeException;
 import com.repayment.domain.schedule.exception.InstallmentConfirmOrderException;
+import com.repayment.domain.schedule.exception.RepaymentScheduleNotConfirmableException;
 import com.repayment.domain.schedule.exception.RepaymentScheduleNotFoundException;
 import com.repayment.domain.schedule.mapper.RepaymentScheduleMapper;
 import com.repayment.global.code.InterestType;
@@ -41,6 +43,7 @@ class RepaymentScheduleConfirmServiceTest {
     private static final long REPAYMENT_SCHEDULE_ID = 100L;
     private static final long LOAN_ACCOUNT_ID = 10L;
     private static final LocalDate SCHEDULED_DATE = LocalDate.of(2026, 11, 10);
+    private static final LocalDate FIVE_DAYS_BEFORE = LocalDate.of(2026, 11, 5);
 
     @Mock
     private RepaymentScheduleMapper repaymentScheduleMapper;
@@ -55,18 +58,19 @@ class RepaymentScheduleConfirmServiceTest {
     private RepaymentScheduleConfirmService repaymentScheduleConfirmService;
 
     @Nested
-    @DisplayName("원리금균등·고정금리 6%(기준 4.5% + 가산 1.5%), 원금 12,000,000원, 12회 대출일 때")
-    class 원리금균등_고정금리_대출 {
+    @DisplayName("원리금균등·고정금리 6%(기준 4.5% + 가산 1.5%), 원금 12,000,000원, 12회, 예정일 11/10인 예정 회차일 때")
+    class 원리금균등_고정금리_예정_회차 {
 
+        // 프로그램 설계 상환금 확정: 예정일 5일 전이 된 회차를 확정한다
         @Test
-        @DisplayName("1회차(마지막 확정 0회차)를 확정하면 원금 972,797원, 이자 60,000원을 납부 기한 도래로 저장하고 마지막 확정 회차를 1로 올린다")
-        void 첫_회차는_최초_원금과_총_회차로_계산한다() {
+        @DisplayName("1회차를 기준일 11/05에 확정하면 원금 972,797원, 이자 60,000원을 납부 기한 도래로 저장하고 마지막 확정 회차를 1로 올린다")
+        void 예정일_5일_전에_첫_회차를_확정한다() {
             // given
             givenTarget(target(1, 0, "0"));
             givenFixedRate();
 
             // when
-            repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID);
+            repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE);
 
             // then
             Confirmation confirmation = captureConfirmation();
@@ -80,14 +84,14 @@ class RepaymentScheduleConfirmServiceTest {
 
         // 프로그램 설계 상환금 확정: B = P0 − 앞 회차 원금 합, n = N − 회차 + 1
         @Test
-        @DisplayName("2회차(앞 원금 합 972,797원)를 확정하면 원금 977,661원, 이자 55,136원을 저장하고 마지막 확정 회차를 2로 올린다")
-        void 계산_잔액은_최초_원금에서_앞_회차_원금을_뺀다() {
+        @DisplayName("2회차(앞 원금 합 972,797원)를 예정일 당일 11/10에 확정하면 원금 977,661원, 이자 55,136원을 저장하고 마지막 확정 회차를 2로 올린다")
+        void 예정일_당일에_계산_잔액으로_확정한다() {
             // given
             givenTarget(target(2, 1, "972797"));
             givenFixedRate();
 
             // when
-            repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID);
+            repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, SCHEDULED_DATE);
 
             // then
             Confirmation confirmation = captureConfirmation();
@@ -97,30 +101,83 @@ class RepaymentScheduleConfirmServiceTest {
         }
 
         @Test
+        @DisplayName("기준일이 11/04(예정일 6일 전)면 ConfirmDateOutOfRangeException을 던지고 아무것도 저장하지 않는다")
+        void 예정일_5일_전보다_이르면_확정하지_않는다() {
+            // given
+            givenTarget(target(1, 0, "0"));
+
+            // when
+            Throwable thrown = catchThrowable(() ->
+                    repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, LocalDate.of(2026, 11, 4)));
+
+            // then
+            assertThat(thrown).isInstanceOf(ConfirmDateOutOfRangeException.class);
+            thenNothingSaved();
+        }
+
+        // 프로그램 설계 2단계 판정 트리: 미확정인데 예정일이 지났으면 확정하지 않는다
+        @Test
+        @DisplayName("기준일이 11/11(예정일 다음 날)이면 ConfirmDateOutOfRangeException을 던지고 아무것도 저장하지 않는다")
+        void 예정일이_지났으면_확정하지_않는다() {
+            // given
+            givenTarget(target(1, 0, "0"));
+
+            // when
+            Throwable thrown = catchThrowable(() ->
+                    repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, LocalDate.of(2026, 11, 11)));
+
+            // then
+            assertThat(thrown).isInstanceOf(ConfirmDateOutOfRangeException.class);
+            thenNothingSaved();
+        }
+
+        @Test
         @DisplayName("3회차인데 마지막 확정이 1회차면 InstallmentConfirmOrderException을 던지고 아무것도 저장하지 않는다")
         void 앞_회차가_미확정이면_확정하지_않는다() {
             // given
             givenTarget(target(3, 1, "972797"));
 
             // when
-            Throwable thrown = catchThrowable(() -> repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID));
+            Throwable thrown = catchThrowable(() ->
+                    repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE));
 
             // then
             assertThat(thrown).isInstanceOf(InstallmentConfirmOrderException.class);
             thenNothingSaved();
         }
+    }
+
+    @Nested
+    @DisplayName("회차가 예정 상태가 아닐 때")
+    class 예정_상태_아님 {
 
         @Test
-        @DisplayName("1회차인데 마지막 확정이 1회차면 InstallmentConfirmOrderException을 던지고 아무것도 저장하지 않는다")
-        void 이미_확정한_회차는_다시_확정하지_않는다() {
+        @DisplayName("이미 확정해 납부 기한 도래인 1회차면 RepaymentScheduleNotConfirmableException을 던지고 아무것도 저장하지 않는다")
+        void 확정한_회차는_다시_확정하지_않는다() {
             // given
-            givenTarget(target(1, 1, "0"));
+            givenTarget(target(RepaymentScheduleStatus.DUE, InterestType.FIXED, 1, 1, "0"));
 
             // when
-            Throwable thrown = catchThrowable(() -> repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID));
+            Throwable thrown = catchThrowable(() ->
+                    repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE));
 
             // then
-            assertThat(thrown).isInstanceOf(InstallmentConfirmOrderException.class);
+            assertThat(thrown).isInstanceOf(RepaymentScheduleNotConfirmableException.class);
+            thenNothingSaved();
+        }
+
+        @Test
+        @DisplayName("마지막 확정이 3회차라 순서가 맞아도 기한이익상실로 종료된 4회차면 RepaymentScheduleNotConfirmableException을 던지고 아무것도 저장하지 않는다")
+        void 닫힌_회차는_확정하지_않는다() {
+            // given
+            givenTarget(target(RepaymentScheduleStatus.CLOSED_BY_ACCELERATION, InterestType.FIXED, 4, 3, "2932007"));
+
+            // when
+            Throwable thrown = catchThrowable(() ->
+                    repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE));
+
+            // then
+            assertThat(thrown).isInstanceOf(RepaymentScheduleNotConfirmableException.class);
             thenNothingSaved();
         }
     }
@@ -137,6 +194,7 @@ class RepaymentScheduleConfirmServiceTest {
                     .repaymentScheduleId(REPAYMENT_SCHEDULE_ID)
                     .loanAccountId(LOAN_ACCOUNT_ID)
                     .installmentNo(1)
+                    .repaymentScheduleStatusId(RepaymentScheduleStatus.SCHEDULED)
                     .scheduledDate(SCHEDULED_DATE)
                     .interestTypeId(InterestType.FIXED)
                     .repaymentMethodId(RepaymentMethod.BULLET)
@@ -151,7 +209,7 @@ class RepaymentScheduleConfirmServiceTest {
                     .willReturn(new AppliedRateResponse(BigDecimal.ZERO, BigDecimal.ZERO));
 
             // when
-            repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID);
+            repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE);
 
             // then
             Confirmation confirmation = captureConfirmation();
@@ -169,12 +227,13 @@ class RepaymentScheduleConfirmServiceTest {
         @DisplayName("BaseRateNotFoundException을 그대로 던지고 아무것도 저장하지 않는다")
         void 금리를_모르면_확정하지_않는다() {
             // given
-            givenTarget(target(InterestType.VARIABLE, 1, 0, "0"));
+            givenTarget(target(RepaymentScheduleStatus.SCHEDULED, InterestType.VARIABLE, 1, 0, "0"));
             given(appliedRateService.resolve(any(), any(), any(), any()))
-                    .willThrow(new BaseRateNotFoundException(LocalDate.of(2026, 11, 5)));
+                    .willThrow(new BaseRateNotFoundException(FIVE_DAYS_BEFORE));
 
             // when
-            Throwable thrown = catchThrowable(() -> repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID));
+            Throwable thrown = catchThrowable(() ->
+                    repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE));
 
             // then
             assertThat(thrown).isInstanceOf(BaseRateNotFoundException.class);
@@ -193,7 +252,8 @@ class RepaymentScheduleConfirmServiceTest {
             given(repaymentScheduleMapper.findConfirmTarget(REPAYMENT_SCHEDULE_ID)).willReturn(Optional.empty());
 
             // when
-            Throwable thrown = catchThrowable(() -> repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID));
+            Throwable thrown = catchThrowable(() ->
+                    repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE));
 
             // then
             assertThat(thrown).isInstanceOf(RepaymentScheduleNotFoundException.class);
@@ -215,16 +275,20 @@ class RepaymentScheduleConfirmServiceTest {
 
     private static RepaymentScheduleConfirmTargetResponse target(int installmentNo, int lastConfirmedInstallmentNo,
                                                                  String priorScheduledPrincipalSum) {
-        return target(InterestType.FIXED, installmentNo, lastConfirmedInstallmentNo, priorScheduledPrincipalSum);
+        return target(RepaymentScheduleStatus.SCHEDULED, InterestType.FIXED, installmentNo,
+                lastConfirmedInstallmentNo, priorScheduledPrincipalSum);
     }
 
-    private static RepaymentScheduleConfirmTargetResponse target(InterestType interestType, int installmentNo,
+    // 원리금균등, 기준 4.5% + 가산 1.5%, 원금 12,000,000원, 12회, 예정일 11/10
+    private static RepaymentScheduleConfirmTargetResponse target(RepaymentScheduleStatus status,
+                                                                 InterestType interestType, int installmentNo,
                                                                  int lastConfirmedInstallmentNo,
                                                                  String priorScheduledPrincipalSum) {
         return RepaymentScheduleConfirmTargetResponse.builder()
                 .repaymentScheduleId(REPAYMENT_SCHEDULE_ID)
                 .loanAccountId(LOAN_ACCOUNT_ID)
                 .installmentNo(installmentNo)
+                .repaymentScheduleStatusId(status)
                 .scheduledDate(SCHEDULED_DATE)
                 .interestTypeId(interestType)
                 .repaymentMethodId(RepaymentMethod.EQUAL_PRINCIPAL_INTEREST)
@@ -242,8 +306,7 @@ class RepaymentScheduleConfirmServiceTest {
         ArgumentCaptor<AppliedRateResponse> rate = ArgumentCaptor.forClass(AppliedRateResponse.class);
         ArgumentCaptor<RepaymentScheduleStatus> status = ArgumentCaptor.forClass(RepaymentScheduleStatus.class);
         then(repaymentScheduleMapper).should()
-                .updateConfirmation(eq(REPAYMENT_SCHEDULE_ID),
-                        amount.capture(), rate.capture(), status.capture());
+                .updateConfirmation(eq(REPAYMENT_SCHEDULE_ID), amount.capture(), rate.capture(), status.capture());
         return new Confirmation(amount.getValue(), rate.getValue(), status.getValue());
     }
 
