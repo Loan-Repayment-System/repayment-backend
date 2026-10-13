@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -101,6 +102,49 @@ class BaseRateHistoryMapperIntegrationTest {
 
             // then
             assertThat(thrown).isInstanceOf(DuplicateKeyException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("10/16·10/19·10/20 기준금리가 저장돼 있을 때")
+    class 기준금리_10월16일_19일_20일_저장됨 {
+
+        // 프로그램 설계 상환금 확정: '예정일 − 5일'보다 이전에 공시된 가장 최근 값
+        @Test
+        @DisplayName("10/20 이전 최근 금리를 조회하면 10/20 당일은 빼고 10/19의 2.845%가 나온다")
+        void 기준_날짜_당일을_빼고_가장_최근_금리를_조회한다() {
+            // given
+            baseRateHistoryMapper.insertBaseRates(List.of(
+                    rate(LocalDate.of(2026, 10, 16), "2.84000"),
+                    rate(LocalDate.of(2026, 10, 19), "2.84500"),
+                    rate(LocalDate.of(2026, 10, 20), "2.85000")));
+
+            // when
+            Optional<BigDecimal> latestRate = baseRateHistoryMapper.findLatestRateBefore(LocalDate.of(2026, 10, 20));
+
+            // then
+            assertThat(latestRate).hasValueSatisfying(
+                    rate -> assertThat(rate).isEqualByComparingTo("2.84500"));
+        }
+    }
+
+    @Nested
+    @DisplayName("10/20·10/21 기준금리만 저장돼 있을 때")
+    class 기준금리_10월20일_21일만_저장됨 {
+
+        @Test
+        @DisplayName("10/20 이전 최근 금리를 조회하면 빈 값이 나온다")
+        void 기준_날짜_이후_공시만_있으면_빈_값이다() {
+            // given
+            baseRateHistoryMapper.insertBaseRates(List.of(
+                    rate(LocalDate.of(2026, 10, 20), "2.85000"),
+                    rate(LocalDate.of(2026, 10, 21), "2.85500")));
+
+            // when
+            Optional<BigDecimal> latestRate = baseRateHistoryMapper.findLatestRateBefore(LocalDate.of(2026, 10, 20));
+
+            // then
+            assertThat(latestRate).isEmpty();
         }
     }
 
