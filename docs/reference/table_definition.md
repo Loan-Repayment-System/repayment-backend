@@ -1,13 +1,13 @@
 # 테이블 정의서
 
-> 스키마의 정본은 `src/main/resources/db/migration/V0__init.sql`이다. 스키마를 바꾸면 이 문서를 함께 고친다.
+> 스키마의 정본은 `src/main/resources/db/migration/`의 마이그레이션이다(`V0__init.sql`부터 차례로 적용). 스키마를 바꾸면 이 문서를 함께 고친다.
 > 공통 컬럼 `created_at`, `updated_at`(DATETIME, DB가 채움)은 모든 테이블에 있어 표에서 생략한다.
 
 ---
 
 ## 코드성 테이블
 
-13개 모두 구조가 같다. id는 enum과 1:1이므로 AUTO_INCREMENT를 쓰지 않는다.
+12개 모두 구조가 같다. id는 enum과 1:1이므로 AUTO_INCREMENT를 쓰지 않는다.
 
 | No. | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 비고 |
 |---|---|---|---|---|---|
@@ -25,7 +25,6 @@
 | delinquency_status | 연체금 상태 | 1 진행중, 2 해소 |
 | account_status | 계좌 상태 | 1 정상, 2 해지, 3 정지 |
 | transaction_type | 거래 유형 | 1 출금, 2 입금 |
-| base_rate_index | 기준금리 지표 | 1 KORIBOR 12개월 |
 | repayment_channel | 상환 채널 | 1 고객 상환, 2 자동 상환 |
 | daily_closing_status | 일마감 상태 | 1 진행중, 2 완료, 3 실패 |
 | failure_type | 실패 종류 | 1 기준금리 조회 오류, 2 대출 스케줄 판정 실패, 3 대출 상태 판정 실패, 4 상태 변화 처리 실패, 5 배치 중단 |
@@ -135,11 +134,10 @@
 | No. | 컬럼 한글명 | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 기본값 | 비고 |
 |---|---|---|---|---|---|---|---|
 | 1 | 이력ID | base_rate_history_id | BIGINT | PK | N | AUTO_INCREMENT | |
-| 2 | 지표 | base_rate_index_id | INT | FK, UQ① | N | | KORIBOR 12개월 |
-| 3 | 공시일 | announced_date | DATE | UQ① | N | | |
-| 4 | 금리 | rate | DECIMAL(10,5) | | N | | 단위: % |
+| 2 | 공시일 | announced_date | DATE | UQ | N | | |
+| 3 | 금리 | rate | DECIMAL(10,5) | | N | | 단위: % |
 
-> UQ① (base_rate_index_id, announced_date). 덮어쓰지 않는다.
+> KORIBOR 12개월 금리만 담는다. 공시일마다 1행이고 덮어쓰지 않는다.
 
 ---
 
