@@ -4,8 +4,10 @@ import com.repayment.domain.baserate.dto.response.BaseRateResponse;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Mapper
 public interface BaseRateHistoryMapper {
@@ -14,4 +16,6 @@ public interface BaseRateHistoryMapper {
                                        @Param("endDate") LocalDate endDate);
 
     int insertBaseRates(List<BaseRateResponse> rates);
+
+    Optional<BigDecimal> findLatestRateBefore(LocalDate date);
 }

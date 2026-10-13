@@ -15,4 +15,12 @@
             (#{rate.announcedDate}, #{rate.rate})
         </foreach>
     </insert>
+
+    <select id="findLatestRateBefore" resultType="java.math.BigDecimal">
+        SELECT rate
+        FROM base_rate_history
+        WHERE announced_date &lt; #{date}
+        ORDER BY announced_date DESC
+        LIMIT 1
+    </select>
 </mapper>
