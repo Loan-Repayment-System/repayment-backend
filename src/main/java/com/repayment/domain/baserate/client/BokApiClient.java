@@ -18,8 +18,8 @@ import java.util.List;
 /**
  * 한국은행 ECOS API에서 KORIBOR(12개월) 금리를 기간으로 조회한다.
  *
- * 타임아웃·연결 실패(ResourceAccessException)와 4xx·5xx(RestClientResponseException)는
- * 감싸지 않고 그대로 던진다. 배치 Step이 예외 종류를 보고 재시도 여부를 정한다.
+ * 타임아웃·연결 실패(ResourceAccessException)와 4xx·5xx(RestClientResponseException)는 RestClient 예외를 그대로 던지고,
+ * ECOS 오류 응답과 응답 형식 오류는 BaseRateFetchFailedException을 던진다.
  */
 @Component
 public class BokApiClient {
