@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.schedule.mapper.RepaymentScheduleMapper">
+
+    <!-- 계산한 값이라 컬럼 이름이 없어 prior_scheduled_principal_sum만 별칭을 붙인다 -->
+    <select id="findConfirmTarget"
+            resultType="com.repayment.domain.schedule.dto.response.RepaymentScheduleConfirmTargetResponse">
+        SELECT rs.repayment_schedule_id,
+               rs.loan_account_id,
+               rs.installment_no,
+               rs.repayment_schedule_status_id,
+               rs.scheduled_date,
+               lp.interest_type_id,
+               lp.repayment_method_id,
+               lc.contract_base_rate,
+               lc.contract_additional_rate,
+               lc.contract_principal,
+               lc.total_installments,
+               la.last_confirmed_installment_no,
+               (SELECT COALESCE(SUM(prior.scheduled_principal), 0)
+                FROM repayment_schedule prior
+                WHERE prior.loan_account_id = rs.loan_account_id
+                  AND prior.installment_no &lt; rs.installment_no) AS prior_scheduled_principal_sum
+        FROM repayment_schedule rs
+        JOIN loan_account la ON la.loan_account_id = rs.loan_account_id
+        JOIN loan_contract lc ON lc.loan_contract_id = la.loan_contract_id
+        JOIN loan_product lp ON lp.loan_product_id = lc.loan_product_id
+        WHERE rs.repayment_schedule_id = #{repaymentScheduleId}
+    </select>
+
+    <update id="updateConfirmation">
+        UPDATE repayment_schedule
+        SET scheduled_principal          = #{amount.principal},
+            scheduled_interest           = #{amount.interest},
+            applied_base_rate            = #{rate.baseRate},
+            applied_additional_rate      = #{rate.additionalRate},
+            confirmed_at                 = NOW(),
+            repayment_schedule_status_id = #{status}
+        WHERE repayment_schedule_id = #{repaymentScheduleId}
+    </update>
+
+    <update id="updateLastConfirmedInstallmentNo">
+        UPDATE loan_account
+        SET last_confirmed_installment_no = #{installmentNo}
+        WHERE loan_account_id = #{loanAccountId}
+    </update>
+</mapper>
