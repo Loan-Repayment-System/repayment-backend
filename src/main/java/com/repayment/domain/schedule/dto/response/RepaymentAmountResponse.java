@@ -18,4 +18,8 @@ public class RepaymentAmountResponse {
 
     private BigDecimal principal;
     private BigDecimal interest;
+
+    public boolean isZero() {
+        return principal.add(interest).signum() == 0;
+    }
 }

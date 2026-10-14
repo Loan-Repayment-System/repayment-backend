@@ -1,8 +1,10 @@
 package com.repayment.domain.schedule.service;
 
+import com.repayment.domain.schedule.dto.response.RepaymentAmountResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse;
 import com.repayment.domain.schedule.exception.UnconfirmedInstallmentPastDueException;
 import com.repayment.domain.schedule.mapper.RepaymentScheduleMapper;
+import com.repayment.global.code.RepaymentScheduleStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +29,14 @@ public class RepaymentScheduleJudgmentService {
         switch (judgment) {
             case KEEP -> {
             }
-            case CONFIRM -> repaymentScheduleConfirmService.confirm(target.getRepaymentScheduleId(), businessDate);
+            case CONFIRM -> {
+                RepaymentAmountResponse amount =
+                        repaymentScheduleConfirmService.confirm(target.getRepaymentScheduleId(), businessDate);
+                RepaymentScheduleStatus status = amount.isZero()
+                        ? RepaymentScheduleStatus.PAID
+                        : RepaymentScheduleStatus.DUE;
+                repaymentScheduleMapper.updateStatus(target.getRepaymentScheduleId(), status);
+            }
             case UNCONFIRMED_PAST_DUE -> throw new UnconfirmedInstallmentPastDueException(
                     target.getLoanAccountId(), target.getRepaymentScheduleId(),
                     target.getScheduledDate(), businessDate);

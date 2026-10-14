@@ -17,7 +17,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * 회차 하나의 상환금(원금·이자)을 확정한다. 언제 확정할지는 대출 스케줄 판정이 정한다.
+ * 회차 하나의 상환금(원금·이자)을 확정한다. 언제 확정할지와 확정 뒤 회차 상태는 대출 스케줄 판정이 정한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -30,10 +30,10 @@ public class RepaymentScheduleConfirmService {
     private final RepaymentAmountCalculator repaymentAmountCalculator;
 
     /**
-     * 기준일이 '예정일 − 5일' ~ 예정일 사이인 '예정' 회차만, 회차 번호 순서대로 확정한다.
+     * 기준일이 '예정일 − 5일' ~ 예정일 사이인 '예정' 회차만, 회차 번호 순서대로 확정하고 확정 금액을 돌려준다.
      */
     @Transactional
-    public void confirm(Long repaymentScheduleId, LocalDate businessDate) {
+    public RepaymentAmountResponse confirm(Long repaymentScheduleId, LocalDate businessDate) {
         RepaymentScheduleConfirmTargetResponse target = repaymentScheduleMapper.findConfirmTarget(repaymentScheduleId)
                 .orElseThrow(() -> new RepaymentScheduleNotFoundException(repaymentScheduleId));
 
@@ -65,10 +65,8 @@ public class RepaymentScheduleConfirmService {
                 rate.getBaseRate().add(rate.getAdditionalRate()), remainingInstallments,
                 target.getContractPrincipal(), target.getTotalInstallments());
 
-        RepaymentScheduleStatus status = amount.getPrincipal().add(amount.getInterest()).signum() == 0
-                ? RepaymentScheduleStatus.PAID
-                : RepaymentScheduleStatus.DUE;
-        repaymentScheduleMapper.updateConfirmation(repaymentScheduleId, amount, rate, status);
+        repaymentScheduleMapper.updateConfirmation(repaymentScheduleId, amount, rate);
         repaymentScheduleMapper.updateLastConfirmedInstallmentNo(target.getLoanAccountId(), installmentNo);
+        return amount;
     }
 }

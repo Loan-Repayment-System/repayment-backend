@@ -1,5 +1,6 @@
 package com.repayment.domain.schedule.service;
 
+import com.repayment.domain.schedule.dto.response.RepaymentAmountResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse;
 import com.repayment.domain.schedule.exception.UnconfirmedInstallmentPastDueException;
 import com.repayment.domain.schedule.mapper.RepaymentScheduleMapper;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,18 +48,37 @@ class RepaymentScheduleJudgmentServiceTest {
     class 미확정 {
 
         @Test
-        @DisplayName("11/05에 판정하면 상환금 확정을 부르고 상태는 따로 바꾸지 않는다")
-        void 확정할_때가_되면_상환금_확정을_부른다() {
+        @DisplayName("11/05에 판정해 원금 1,000,000원, 이자 50,000원으로 확정되면 납부 기한 도래로 바꾼다")
+        void 확정하면_납부_기한_도래로_바꾼다() {
             // given
             RepaymentScheduleJudgmentTargetResponse target = unconfirmed();
             LocalDate businessDate = LocalDate.of(2026, 11, 5);
+            given(repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, businessDate))
+                    .willReturn(new RepaymentAmountResponse(new BigDecimal("1000000"), new BigDecimal("50000")));
 
             // when
             repaymentScheduleJudgmentService.judge(target, businessDate);
 
             // then
             then(repaymentScheduleConfirmService).should().confirm(REPAYMENT_SCHEDULE_ID, businessDate);
-            then(repaymentScheduleMapper).shouldHaveNoInteractions();
+            then(repaymentScheduleMapper).should().updateStatus(REPAYMENT_SCHEDULE_ID, RepaymentScheduleStatus.DUE);
+        }
+
+        @Test
+        @DisplayName("11/05에 판정해 0원으로 확정되면 그날 바로 납입 완료로 바꾼다")
+        void 영원으로_확정하면_납입_완료로_바꾼다() {
+            // given
+            RepaymentScheduleJudgmentTargetResponse target = unconfirmed();
+            LocalDate businessDate = LocalDate.of(2026, 11, 5);
+            given(repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, businessDate))
+                    .willReturn(new RepaymentAmountResponse(BigDecimal.ZERO, BigDecimal.ZERO));
+
+            // when
+            repaymentScheduleJudgmentService.judge(target, businessDate);
+
+            // then
+            then(repaymentScheduleConfirmService).should().confirm(REPAYMENT_SCHEDULE_ID, businessDate);
+            then(repaymentScheduleMapper).should().updateStatus(REPAYMENT_SCHEDULE_ID, RepaymentScheduleStatus.PAID);
         }
 
         @Test

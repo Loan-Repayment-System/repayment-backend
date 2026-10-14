@@ -129,15 +129,14 @@ class RepaymentScheduleMapperIntegrationTest {
     class 확정_내용_저장 {
 
         @Test
-        @DisplayName("3회차에 원금 982,549원, 이자 50,247원, 적용 금리 4.5%·1.5%, 납부 기한 도래를 넣고 confirmed_at을 채운다")
+        @DisplayName("3회차에 원금 982,549원, 이자 50,247원, 적용 금리 4.5%·1.5%를 넣고 confirmed_at을 채우며, 상태는 예정 그대로 둔다")
         void 확정_컬럼을_모두_저장한다() {
             // given
             RepaymentAmountResponse amount = new RepaymentAmountResponse(new BigDecimal("982549"), new BigDecimal("50247"));
             AppliedRateResponse rate = new AppliedRateResponse(new BigDecimal("4.5"), new BigDecimal("1.5"));
 
             // when
-            int updatedCount = repaymentScheduleMapper.updateConfirmation(
-                    thirdScheduleId, amount, rate, RepaymentScheduleStatus.DUE);
+            int updatedCount = repaymentScheduleMapper.updateConfirmation(thirdScheduleId, amount, rate);
 
             // then
             assertThat(updatedCount).isEqualTo(1);
@@ -149,7 +148,7 @@ class RepaymentScheduleMapperIntegrationTest {
             assertThat((BigDecimal) row.get("applied_base_rate")).isEqualByComparingTo("4.5");
             assertThat((BigDecimal) row.get("applied_additional_rate")).isEqualByComparingTo("1.5");
             assertThat(row.get("confirmed_at")).isNotNull();
-            assertThat(row.get("repayment_schedule_status_id")).isEqualTo(RepaymentScheduleStatus.DUE.getId());
+            assertThat(row.get("repayment_schedule_status_id")).isEqualTo(RepaymentScheduleStatus.SCHEDULED.getId());
         }
 
         @Test
