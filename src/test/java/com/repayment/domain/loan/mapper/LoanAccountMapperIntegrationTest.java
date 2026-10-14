@@ -88,10 +88,10 @@ class LoanAccountMapperIntegrationTest {
                     loanAccountId);
             insert("INSERT INTO acceleration_daily_charge (loan_acceleration_id, charge_date, loan_judgment_status_id, "
                     + "delinquency_target_amount, delinquency_rate, delinquency_charge, interest_amount, paid_interest, "
-                    + "delinquency_status_id) VALUES (?, '2026-03-11', 3, 100000, 9, 400, 1200, 1200, 1)", accelerationId);
+                    + "delinquency_status_id) VALUES (?, '2026-03-11', 13, 100000, 9, 400, 1200, 1200, 1)", accelerationId);
             insert("INSERT INTO acceleration_daily_charge (loan_acceleration_id, charge_date, loan_judgment_status_id, "
                     + "delinquency_target_amount, delinquency_rate, delinquency_charge, delinquency_status_id) "
-                    + "VALUES (?, '2026-03-12', 3, 100000, 9, 400, 1)", accelerationId);
+                    + "VALUES (?, '2026-03-12', 13, 100000, 9, 400, 1)", accelerationId);
 
             // when
             Optional<BigDecimal> result = loanAccountMapper.findRemainingDebtTotal(loanAccountId);
@@ -187,14 +187,14 @@ class LoanAccountMapperIntegrationTest {
     private void insertInstallmentCharge(long repaymentScheduleId, String chargeDate, String charge, String paid) {
         insert("INSERT INTO installment_delinquency_charge (repayment_schedule_id, charge_date, loan_judgment_status_id, "
                         + "delinquency_target_amount, delinquency_rate, delinquency_charge, paid_delinquency_charge, "
-                        + "delinquency_status_id) VALUES (?, ?, 1, 50000, 9, ?, ?, 1)",
+                        + "delinquency_status_id) VALUES (?, ?, 11, 50000, 9, ?, ?, 1)",
                 repaymentScheduleId, chargeDate, new BigDecimal(charge), new BigDecimal(paid));
     }
 
     private void insertMaturityOverdueCharge(long loanMaturityOverdueId, String chargeDate) {
         insert("INSERT INTO maturity_overdue_daily_charge (loan_maturity_overdue_id, charge_date, "
                 + "loan_judgment_status_id, delinquency_target_amount, delinquency_rate, delinquency_charge, "
-                + "delinquency_status_id) VALUES (?, ?, 4, 10000000, 9, 500, 1)", loanMaturityOverdueId, chargeDate);
+                + "delinquency_status_id) VALUES (?, ?, 1, 10000000, 9, 500, 1)", loanMaturityOverdueId, chargeDate);
     }
 
     private long insert(String sql, Object... args) {

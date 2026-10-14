@@ -20,7 +20,7 @@
 | repayment_method | 상환방법 | 1 원금만기일시상환, 2 원리금균등상환, 3 원금균등상환 |
 | loan_status | 대출상태 (고객 표시) | 1 정상, 2 연체, 3 완제, 4 기한이익상실, 5 만기 경과 |
 | repayment_schedule_status | 회차 상태 | 1 예정, 2 납부 기한 도래, 3 납입 완료, 4 연체, 5 기한이익상실로 종료, 6 만기 경과로 종료 |
-| loan_judgment_status | 판정 상태 | 0 정상, 1 만기일시 이자연체 1개월 미만, 2 만기일시 기한이익상실, 3 만기일시 기한이익상실 ❻항, 4 만기 경과 미상환, 5 분할상환 1회 연체, 6 분할상환 기한이익상실, 7 분할상환 기한이익상실 ❻항, 8 완제 |
+| loan_judgment_status | 판정 상태 | 0 정상, 1 만기 경과 미상환, 2 완제, 11 만기일시 이자연체 1개월 미만, 12 만기일시 기한이익상실, 13 만기일시 기한이익상실 ❻항, 21 분할상환 1회 연체, 22 분할상환 기한이익상실, 23 분할상환 기한이익상실 ❻항 |
 | delinquency_status | 연체금 상태 | 1 진행중, 2 해소 |
 | account_status | 계좌 상태 | 1 정상, 2 해지, 3 정지 |
 | transaction_type | 거래 유형 | 1 출금, 2 입금 |
@@ -151,20 +151,20 @@
 | 1 | 판정ID | loan_status_judgment_id | BIGINT | PK | N | AUTO_INCREMENT | |
 | 2 | 대출계좌ID | loan_account_id | BIGINT | FK, IDX① | N | | |
 | 3 | 기준일 | business_date | DATE | IDX① | N | | 상환 판정이면 상환한 날 |
-| 4 | 판정 상태 | loan_judgment_status_id | INT | FK | N | | 0 정상, 1~7 연체 근거, 8 완제 |
+| 4 | 판정 상태 | loan_judgment_status_id | INT | FK | N | | 0 정상, 1 만기 경과, 2 완제, 11~13 만기일시, 21~23 분할상환 |
 
 > IDX① (loan_account_id, business_date)
 
 ### 회차 연체금 (installment_delinquency_charge)
 
-회차 단위 연체(판정 1·5)의 하루 연체금. 계산 근거는 고치지 않는다.
+회차 단위 연체(판정 11·21)의 하루 연체금. 계산 근거는 고치지 않는다.
 
 | No. | 컬럼 한글명 | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 기본값 | 비고 |
 |---|---|---|---|---|---|---|---|
 | 1 | 연체금ID | installment_delinquency_charge_id | BIGINT | PK | N | AUTO_INCREMENT | |
 | 2 | 회차ID | repayment_schedule_id | BIGINT | FK, UQ① | N | | |
 | 3 | 연체금 날짜 | charge_date | DATE | UQ① | N | | |
-| 4 | 근거 | loan_judgment_status_id | INT | FK | N | | 1·5 |
+| 4 | 근거 | loan_judgment_status_id | INT | FK | N | | 11·21 |
 | 5 | 대상 금액 | delinquency_target_amount | DECIMAL(23,4) | | N | | |
 | 6 | 연체 이자율 | delinquency_rate | DECIMAL(10,5) | | N | | |
 | 7 | 연체금 | delinquency_charge | DECIMAL(23,4) | | N | | |
@@ -199,12 +199,12 @@
 | 1 | ID | acceleration_daily_charge_id / maturity_overdue_daily_charge_id | BIGINT | PK | N | AUTO_INCREMENT | |
 | 2 | 상위 행ID | loan_acceleration_id / loan_maturity_overdue_id | BIGINT | FK, UQ① | N | | |
 | 3 | 날짜 | charge_date | DATE | UQ① | N | | |
-| 4 | 근거 | loan_judgment_status_id | INT | FK | N | | 기한이익상실 2·3·6·7, 만기 경과 4 |
+| 4 | 근거 | loan_judgment_status_id | INT | FK | N | | 기한이익상실 12·13·22·23, 만기 경과 1 |
 | 5 | 연체금 대상 금액 | delinquency_target_amount | DECIMAL(23,4) | | N | | |
 | 6 | 연체 이자율 | delinquency_rate | DECIMAL(10,5) | | N | | |
 | 7 | 연체금 | delinquency_charge | DECIMAL(23,4) | | N | | |
 | 8 | 낸 연체금 | paid_delinquency_charge | DECIMAL(23,4) | | N | 0 | 누적 |
-| 9 | 하루 약정이자 | interest_amount | DECIMAL(23,4) | | N | 0 | 3·7 기한이익상실+❻만. 만기 경과는 항상 0 |
+| 9 | 하루 약정이자 | interest_amount | DECIMAL(23,4) | | N | 0 | 13·23 기한이익상실+❻만. 만기 경과는 항상 0 |
 | 10 | 낸 약정이자 | paid_interest | DECIMAL(23,4) | | N | 0 | 누적 |
 | 11 | 상태 | delinquency_status_id | INT | FK | N | | 진행중·해소 |
 

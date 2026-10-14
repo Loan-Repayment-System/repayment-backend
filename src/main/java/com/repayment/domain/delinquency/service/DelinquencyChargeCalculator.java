@@ -42,7 +42,7 @@ public class DelinquencyChargeCalculator {
     }
 
     /**
-     * 하루 약정이자 = 원금 × 대출이자율 ÷ 365 (3·7 기한이익상실+❻항의 나머지 원금)
+     * 하루 약정이자 = 원금 × 대출이자율 ÷ 365 (13·23 기한이익상실+❻항의 나머지 원금)
      *
      * @param loanRate 대출이자율(%)
      */
