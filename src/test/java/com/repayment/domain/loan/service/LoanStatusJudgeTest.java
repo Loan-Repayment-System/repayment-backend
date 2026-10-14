@@ -12,7 +12,7 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DisplayName("대출 상태 판정 트리")
+@DisplayName("대출 상태 판정")
 class LoanStatusJudgeTest {
 
     private static final LocalDate MATURITY_DATE = LocalDate.of(2027, 6, 30);
