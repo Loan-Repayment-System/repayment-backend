@@ -7,7 +7,7 @@
 
 ## 코드성 테이블
 
-12개 모두 구조가 같다. id는 enum과 1:1이므로 AUTO_INCREMENT를 쓰지 않는다.
+11개 모두 구조가 같다. id는 enum과 1:1이므로 AUTO_INCREMENT를 쓰지 않는다.
 
 | No. | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 비고 |
 |---|---|---|---|---|---|
@@ -21,7 +21,6 @@
 | loan_status | 대출상태 (고객 표시) | 1 정상, 2 연체, 3 완제, 4 기한이익상실, 5 만기 경과 |
 | repayment_schedule_status | 회차 상태 | 1 예정, 2 납부 기한 도래, 3 납입 완료, 4 연체, 5 기한이익상실로 종료, 6 만기 경과로 종료 |
 | loan_judgment_status | 판정 상태 | 0 정상, 1 만기일시 이자연체 1개월 미만, 2 만기일시 기한이익상실, 3 만기일시 기한이익상실 ❻항, 4 만기 경과 미상환, 5 분할상환 1회 연체, 6 분할상환 기한이익상실, 7 분할상환 기한이익상실 ❻항, 8 완제 |
-| judgment_source | 판정 주체 | 1 일마감, 2 상환 |
 | delinquency_status | 연체금 상태 | 1 진행중, 2 해소 |
 | account_status | 계좌 상태 | 1 정상, 2 해지, 3 정지 |
 | transaction_type | 거래 유형 | 1 출금, 2 입금 |
@@ -145,22 +144,16 @@
 
 ### 대출 상태 판정 (loan_status_judgment)
 
-판정할 때마다 1행을 쌓고 고치지 않는다. 직전 판정은 그 대출의 가장 최근 `judged_at` 행이다.
+판정할 때마다 1행을 쌓고 고치지 않는다(일마감, 상환). 직전 판정은 그 대출의 가장 큰 `loan_status_judgment_id` 행이다.
 
 | No. | 컬럼 한글명 | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 기본값 | 비고 |
 |---|---|---|---|---|---|---|---|
 | 1 | 판정ID | loan_status_judgment_id | BIGINT | PK | N | AUTO_INCREMENT | |
 | 2 | 대출계좌ID | loan_account_id | BIGINT | FK, IDX① | N | | |
-| 3 | 기준일 | business_date | DATE | | N | | 상환 판정이면 상환한 날 |
+| 3 | 기준일 | business_date | DATE | IDX① | N | | 상환 판정이면 상환한 날 |
 | 4 | 판정 상태 | loan_judgment_status_id | INT | FK | N | | 0 정상, 1~7 연체 근거, 8 완제 |
-| 5 | 판정 주체 | judgment_source_id | INT | FK | N | | 일마감·상환 |
-| 6 | 상환ID | repayment_id | BIGINT | FK | Y | | 상환 판정일 때만 |
-| 7 | 밀린 회차 수 | overdue_installment_count | INT | | Y | | 대출 단위 관리 중이면 NULL |
-| 8 | 가장 오래 밀린 예정일 | oldest_overdue_date | DATE | | Y | | |
-| 9 | ❻항 적용 | debtor_protection_applied | BOOLEAN | | N | | |
-| 10 | 판정 일시 | judged_at | DATETIME | IDX① | N | | |
 
-> IDX① (loan_account_id, judged_at)
+> IDX① (loan_account_id, business_date)
 
 ### 회차 연체금 (installment_delinquency_charge)
 

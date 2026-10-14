@@ -6,7 +6,6 @@ import com.repayment.global.code.DailyClosingStatus;
 import com.repayment.global.code.DelinquencyStatus;
 import com.repayment.global.code.FailureType;
 import com.repayment.global.code.InterestType;
-import com.repayment.global.code.JudgmentSource;
 import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.LoanStatus;
 import com.repayment.global.code.RepaymentChannel;
@@ -32,7 +31,6 @@ import java.sql.SQLException;
         LoanStatus.class,
         RepaymentScheduleStatus.class,
         LoanJudgmentStatus.class,
-        JudgmentSource.class,
         DelinquencyStatus.class,
         AccountStatus.class,
         TransactionType.class,

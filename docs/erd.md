@@ -28,8 +28,8 @@
 | 일마감 | `daily_closing` | 일마감 실행 기록 |
 | | `processing_failure` | 처리 실패 기록 |
 
-코드성 테이블 12개: `interest_type`, `repayment_method`, `loan_status`, `repayment_schedule_status`,
-`loan_judgment_status`, `judgment_source`, `delinquency_status`, `account_status`, `transaction_type`,
+코드성 테이블 11개: `interest_type`, `repayment_method`, `loan_status`, `repayment_schedule_status`,
+`loan_judgment_status`, `delinquency_status`, `account_status`, `transaction_type`,
 `repayment_channel`, `daily_closing_status`, `failure_type`
 
 - 코드성 테이블의 id는 enum과 1:1로 대응한다. 초기 데이터는 `V1__code_table_data.sql`에 있다.
@@ -48,7 +48,6 @@ erDiagram
     account ||--o{ account_transaction : ""
     loan_account ||--o{ repayment_schedule : ""
     loan_account ||--o{ loan_status_judgment : "상태 판정"
-    repayment ||--o| loan_status_judgment : "상환 후 판정"
     repayment_schedule ||--o{ installment_delinquency_charge : ""
     loan_account ||--o| loan_acceleration : "기한이익상실"
     loan_acceleration ||--o{ acceleration_daily_charge : ""
