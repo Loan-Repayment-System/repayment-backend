@@ -52,12 +52,12 @@ public class RepaymentScheduleJudge {
     private RepaymentScheduleJudgment judgeConfirmed(RepaymentScheduleJudgmentTargetResponse target,
                                                      LocalDate businessDate) {
         if (isFullyPaid(target)) {
-            return RepaymentScheduleJudgment.PAID;
+            return RepaymentScheduleJudgment.MARK_PAID;
         }
         if (isPastScheduledDate(target, businessDate)) {
-            return RepaymentScheduleJudgment.OVERDUE;
+            return RepaymentScheduleJudgment.MARK_OVERDUE;
         }
-        return RepaymentScheduleJudgment.DUE;
+        return RepaymentScheduleJudgment.MARK_DUE;
     }
 
     private boolean isFinal(RepaymentScheduleJudgmentTargetResponse target) {

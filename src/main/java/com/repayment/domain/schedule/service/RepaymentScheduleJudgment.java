@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 회차 하나의 판정 결과. 상태를 바꾸는 결과만 바꿀 상태를 가진다.
+ * 회차 하나의 판정 결과. MARK_로 시작하는 결과만 바꿀 회차 상태를 가진다.
  */
 @Getter
 @RequiredArgsConstructor
@@ -14,9 +14,9 @@ public enum RepaymentScheduleJudgment {
     KEEP(null),
     CONFIRM(null),
     UNCONFIRMED_PAST_DUE(null),
-    PAID(RepaymentScheduleStatus.PAID),
-    OVERDUE(RepaymentScheduleStatus.OVERDUE),
-    DUE(RepaymentScheduleStatus.DUE);
+    MARK_PAID(RepaymentScheduleStatus.PAID),
+    MARK_OVERDUE(RepaymentScheduleStatus.OVERDUE),
+    MARK_DUE(RepaymentScheduleStatus.DUE);
 
     private final RepaymentScheduleStatus status;
 }

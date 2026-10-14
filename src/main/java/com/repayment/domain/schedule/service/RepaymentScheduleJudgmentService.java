@@ -40,7 +40,7 @@ public class RepaymentScheduleJudgmentService {
             case UNCONFIRMED_PAST_DUE -> throw new UnconfirmedInstallmentPastDueException(
                     target.getLoanAccountId(), target.getRepaymentScheduleId(),
                     target.getScheduledDate(), businessDate);
-            case PAID, OVERDUE, DUE -> {
+            case MARK_PAID, MARK_OVERDUE, MARK_DUE -> {
                 if (judgment.getStatus() != target.getRepaymentScheduleStatusId()) {
                     repaymentScheduleMapper.updateStatus(target.getRepaymentScheduleId(), judgment.getStatus());
                 }

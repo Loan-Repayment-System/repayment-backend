@@ -138,7 +138,7 @@ class RepaymentScheduleJudgeTest {
             RepaymentScheduleJudgment result = judge.judge(target, LocalDate.of(2026, 11, 7));
 
             // then
-            assertThat(result).isEqualTo(RepaymentScheduleJudgment.PAID);
+            assertThat(result).isEqualTo(RepaymentScheduleJudgment.MARK_PAID);
         }
 
         @Test
@@ -152,7 +152,7 @@ class RepaymentScheduleJudgeTest {
             RepaymentScheduleJudgment result = judge.judge(target, LocalDate.of(2026, 11, 20));
 
             // then
-            assertThat(result).isEqualTo(RepaymentScheduleJudgment.PAID);
+            assertThat(result).isEqualTo(RepaymentScheduleJudgment.MARK_PAID);
         }
 
         @Test
@@ -166,7 +166,7 @@ class RepaymentScheduleJudgeTest {
             RepaymentScheduleJudgment result = judge.judge(target, LocalDate.of(2026, 11, 10));
 
             // then
-            assertThat(result).isEqualTo(RepaymentScheduleJudgment.DUE);
+            assertThat(result).isEqualTo(RepaymentScheduleJudgment.MARK_DUE);
         }
 
         @Test
@@ -180,7 +180,7 @@ class RepaymentScheduleJudgeTest {
             RepaymentScheduleJudgment result = judge.judge(target, LocalDate.of(2026, 11, 11));
 
             // then
-            assertThat(result).isEqualTo(RepaymentScheduleJudgment.OVERDUE);
+            assertThat(result).isEqualTo(RepaymentScheduleJudgment.MARK_OVERDUE);
         }
     }
 
