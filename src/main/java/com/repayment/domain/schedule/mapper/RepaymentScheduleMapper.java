@@ -21,4 +21,7 @@ public interface RepaymentScheduleMapper {
 
     int updateLastConfirmedInstallmentNo(@Param("loanAccountId") Long loanAccountId,
                                          @Param("installmentNo") int installmentNo);
+
+    int updateStatus(@Param("repaymentScheduleId") Long repaymentScheduleId,
+                     @Param("status") RepaymentScheduleStatus status);
 }

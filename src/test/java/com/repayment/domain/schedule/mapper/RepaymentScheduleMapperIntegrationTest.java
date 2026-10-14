@@ -170,6 +170,28 @@ class RepaymentScheduleMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("회차 상태를 바꿀 때")
+    class 상태_변경 {
+
+        @Test
+        @DisplayName("납부 기한 도래인 1회차를 연체로 바꾼다")
+        void 회차_상태를_바꾼다() {
+            // given
+            long repaymentScheduleId = firstScheduleId;
+
+            // when
+            int updatedCount = repaymentScheduleMapper.updateStatus(repaymentScheduleId, RepaymentScheduleStatus.OVERDUE);
+
+            // then
+            assertThat(updatedCount).isEqualTo(1);
+            Integer statusId = jdbcTemplate.queryForObject(
+                    "SELECT repayment_schedule_status_id FROM repayment_schedule WHERE repayment_schedule_id = ?",
+                    Integer.class, repaymentScheduleId);
+            assertThat(statusId).isEqualTo(RepaymentScheduleStatus.OVERDUE.getId());
+        }
+    }
+
     private long insertConfirmedSchedule(int installmentNo, String scheduledDate, String principal, String interest) {
         return insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, repayment_schedule_status_id, "
                         + "scheduled_date, scheduled_principal, scheduled_interest, applied_base_rate, "

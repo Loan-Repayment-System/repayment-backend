@@ -44,4 +44,10 @@
         SET last_confirmed_installment_no = #{installmentNo}
         WHERE loan_account_id = #{loanAccountId}
     </update>
+
+    <update id="updateStatus">
+        UPDATE repayment_schedule
+        SET repayment_schedule_status_id = #{status}
+        WHERE repayment_schedule_id = #{repaymentScheduleId}
+    </update>
 </mapper>
