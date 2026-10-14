@@ -22,32 +22,65 @@ public class RepaymentScheduleJudge {
             RepaymentScheduleStatus.CLOSED_BY_MATURITY_OVERDUE);
 
     public RepaymentScheduleJudgment judge(RepaymentScheduleJudgmentTargetResponse target, LocalDate businessDate) {
-        if (FINAL_STATUSES.contains(target.getRepaymentScheduleStatusId())) {
+        if (isFinal(target)) {
             return RepaymentScheduleJudgment.KEEP;
         }
-
-        LocalDate scheduledDate = target.getScheduledDate();
-        if (target.getConfirmedAt() == null) {
-            if (businessDate.isBefore(scheduledDate.minusDays(CONFIRM_DAYS_BEFORE_SCHEDULED_DATE))) {
-                return RepaymentScheduleJudgment.KEEP;
-            }
-            // 고객이 낼 기회가 없었던 회차를 연체로 만들지 않는다
-            return businessDate.isAfter(scheduledDate)
-                    ? RepaymentScheduleJudgment.UNCONFIRMED_PAST_DUE
-                    : RepaymentScheduleJudgment.CONFIRM;
+        if (isConfirmed(target)) {
+            return judgeConfirmed(target, businessDate);
         }
-
-        if (remainingAmount(target).signum() == 0) {
-            return RepaymentScheduleJudgment.PAID;
-        }
-        return businessDate.isAfter(scheduledDate)
-                ? RepaymentScheduleJudgment.OVERDUE
-                : RepaymentScheduleJudgment.DUE;
+        return judgeUnconfirmed(target, businessDate);
     }
 
-    private BigDecimal remainingAmount(RepaymentScheduleJudgmentTargetResponse target) {
-        return target.getScheduledPrincipal().add(target.getScheduledInterest())
+    /**
+     * 미확정 회차: 예정일 5일 전부터 예정일까지 확정한다.
+     */
+    private RepaymentScheduleJudgment judgeUnconfirmed(RepaymentScheduleJudgmentTargetResponse target,
+                                                       LocalDate businessDate) {
+        if (isBeforeConfirmDate(target, businessDate)) {
+            return RepaymentScheduleJudgment.KEEP;
+        }
+        // 고객이 낼 기회가 없었던 회차를 연체로 만들지 않는다
+        if (isPastScheduledDate(target, businessDate)) {
+            return RepaymentScheduleJudgment.UNCONFIRMED_PAST_DUE;
+        }
+        return RepaymentScheduleJudgment.CONFIRM;
+    }
+
+    /**
+     * 확정 회차: 다 냈으면 납입 완료, 남았는데 예정일이 지났으면 연체, 아니면 납부 기한 도래다.
+     */
+    private RepaymentScheduleJudgment judgeConfirmed(RepaymentScheduleJudgmentTargetResponse target,
+                                                     LocalDate businessDate) {
+        if (isFullyPaid(target)) {
+            return RepaymentScheduleJudgment.PAID;
+        }
+        if (isPastScheduledDate(target, businessDate)) {
+            return RepaymentScheduleJudgment.OVERDUE;
+        }
+        return RepaymentScheduleJudgment.DUE;
+    }
+
+    private boolean isFinal(RepaymentScheduleJudgmentTargetResponse target) {
+        return FINAL_STATUSES.contains(target.getRepaymentScheduleStatusId());
+    }
+
+    private boolean isConfirmed(RepaymentScheduleJudgmentTargetResponse target) {
+        return target.getConfirmedAt() != null;
+    }
+
+    private boolean isBeforeConfirmDate(RepaymentScheduleJudgmentTargetResponse target, LocalDate businessDate) {
+        LocalDate confirmDate = target.getScheduledDate().minusDays(CONFIRM_DAYS_BEFORE_SCHEDULED_DATE);
+        return businessDate.isBefore(confirmDate);
+    }
+
+    private boolean isPastScheduledDate(RepaymentScheduleJudgmentTargetResponse target, LocalDate businessDate) {
+        return businessDate.isAfter(target.getScheduledDate());
+    }
+
+    private boolean isFullyPaid(RepaymentScheduleJudgmentTargetResponse target) {
+        BigDecimal remaining = target.getScheduledPrincipal().add(target.getScheduledInterest())
                 .subtract(target.getPaidPrincipal())
                 .subtract(target.getPaidInterest());
+        return remaining.signum() == 0;
     }
 }
