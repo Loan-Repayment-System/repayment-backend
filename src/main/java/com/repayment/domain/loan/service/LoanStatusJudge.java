@@ -11,7 +11,7 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * 대출 하나의 판정할 값과 기준일만 보고 판정 상태(0 정상 ~ 8 완제)를 정한다.
+ * 대출 하나의 판정할 값과 기준일만 보고 판정 상태(LoanJudgmentStatus)를 정한다.
  */
 @Component
 public class LoanStatusJudge {
@@ -39,8 +39,8 @@ public class LoanStatusJudge {
     }
 
     /**
-     * 직전 판정이 0 정상·1 이자연체·5 1회 연체일 때 밀린 회차로 판정한다.
-     * 만기가 지났으면 상환 방법과 상관없이 4 만기 경과다.
+     * 직전 판정이 0 정상·11 이자연체·21 1회 연체일 때 밀린 회차로 판정한다.
+     * 만기가 지났으면 상환 방법과 상관없이 1 만기 경과다.
      */
     private LoanJudgmentStatus judgeByInstallments(LoanStatusJudgmentTargetResponse target, LocalDate businessDate) {
         if (target.getOverdueInstallmentCount() == 0) {
@@ -78,7 +78,7 @@ public class LoanStatusJudge {
     }
 
     /**
-     * 기한이익상실은 상환 방법과 ❻항 적용 여부로 2·3·6·7 중 하나다.
+     * 기한이익상실은 상환 방법과 ❻항 적용 여부로 12·13·22·23 중 하나다.
      */
     private LoanJudgmentStatus acceleration(LoanStatusJudgmentTargetResponse target, LocalDate businessDate) {
         boolean debtorProtection = isDebtorProtectionApplied(target, businessDate);
