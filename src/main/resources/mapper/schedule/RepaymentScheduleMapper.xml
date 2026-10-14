@@ -34,8 +34,7 @@
             scheduled_interest           = #{amount.interest},
             applied_base_rate            = #{rate.baseRate},
             applied_additional_rate      = #{rate.additionalRate},
-            confirmed_at                 = NOW(),
-            repayment_schedule_status_id = #{status}
+            confirmed_at                 = NOW()
         WHERE repayment_schedule_id = #{repaymentScheduleId}
     </update>
 
@@ -43,5 +42,11 @@
         UPDATE loan_account
         SET last_confirmed_installment_no = #{installmentNo}
         WHERE loan_account_id = #{loanAccountId}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE repayment_schedule
+        SET repayment_schedule_status_id = #{status}
+        WHERE repayment_schedule_id = #{repaymentScheduleId}
     </update>
 </mapper>

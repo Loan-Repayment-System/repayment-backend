@@ -63,14 +63,15 @@ class RepaymentScheduleConfirmServiceTest {
 
         // 프로그램 설계 상환금 확정: 예정일 5일 전이 된 회차를 확정한다
         @Test
-        @DisplayName("1회차를 기준일 11/05에 확정하면 원금 972,797원, 이자 60,000원을 납부 기한 도래로 저장하고 마지막 확정 회차를 1로 올린다")
+        @DisplayName("1회차를 기준일 11/05에 확정하면 원금 972,797원, 이자 60,000원을 저장해 돌려주고 마지막 확정 회차를 1로 올린다")
         void 예정일_5일_전에_첫_회차를_확정한다() {
             // given
             givenTarget(target(1, 0, "0"));
             givenFixedRate();
 
             // when
-            repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE);
+            RepaymentAmountResponse result =
+                    repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE);
 
             // then
             Confirmation confirmation = captureConfirmation();
@@ -78,7 +79,8 @@ class RepaymentScheduleConfirmServiceTest {
             assertThat(confirmation.amount().getInterest()).isEqualByComparingTo("60000");
             assertThat(confirmation.rate().getBaseRate()).isEqualByComparingTo("4.5");
             assertThat(confirmation.rate().getAdditionalRate()).isEqualByComparingTo("1.5");
-            assertThat(confirmation.status()).isEqualTo(RepaymentScheduleStatus.DUE);
+            assertThat(result.getPrincipal()).isEqualByComparingTo("972797");
+            assertThat(result.getInterest()).isEqualByComparingTo("60000");
             then(repaymentScheduleMapper).should().updateLastConfirmedInstallmentNo(LOAN_ACCOUNT_ID, 1);
         }
 
@@ -187,8 +189,8 @@ class RepaymentScheduleConfirmServiceTest {
     class 만기일시_0퍼센트_대출 {
 
         @Test
-        @DisplayName("1회차를 확정하면 원금 0원, 이자 0원을 납입 완료로 저장한다")
-        void 영원_회차는_납입_완료로_저장한다() {
+        @DisplayName("1회차를 확정하면 원금 0원, 이자 0원을 저장해 돌려준다")
+        void 영원_회차도_금액만_저장한다() {
             // given
             givenTarget(RepaymentScheduleConfirmTargetResponse.builder()
                     .repaymentScheduleId(REPAYMENT_SCHEDULE_ID)
@@ -209,13 +211,14 @@ class RepaymentScheduleConfirmServiceTest {
                     .willReturn(new AppliedRateResponse(BigDecimal.ZERO, BigDecimal.ZERO));
 
             // when
-            repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE);
+            RepaymentAmountResponse result =
+                    repaymentScheduleConfirmService.confirm(REPAYMENT_SCHEDULE_ID, FIVE_DAYS_BEFORE);
 
             // then
             Confirmation confirmation = captureConfirmation();
             assertThat(confirmation.amount().getPrincipal()).isEqualByComparingTo("0");
             assertThat(confirmation.amount().getInterest()).isEqualByComparingTo("0");
-            assertThat(confirmation.status()).isEqualTo(RepaymentScheduleStatus.PAID);
+            assertThat(result.isZero()).isTrue();
         }
     }
 
@@ -304,18 +307,16 @@ class RepaymentScheduleConfirmServiceTest {
     private Confirmation captureConfirmation() {
         ArgumentCaptor<RepaymentAmountResponse> amount = ArgumentCaptor.forClass(RepaymentAmountResponse.class);
         ArgumentCaptor<AppliedRateResponse> rate = ArgumentCaptor.forClass(AppliedRateResponse.class);
-        ArgumentCaptor<RepaymentScheduleStatus> status = ArgumentCaptor.forClass(RepaymentScheduleStatus.class);
         then(repaymentScheduleMapper).should()
-                .updateConfirmation(eq(REPAYMENT_SCHEDULE_ID), amount.capture(), rate.capture(), status.capture());
-        return new Confirmation(amount.getValue(), rate.getValue(), status.getValue());
+                .updateConfirmation(eq(REPAYMENT_SCHEDULE_ID), amount.capture(), rate.capture());
+        return new Confirmation(amount.getValue(), rate.getValue());
     }
 
     private void thenNothingSaved() {
-        then(repaymentScheduleMapper).should(never()).updateConfirmation(anyLong(), any(), any(), any());
+        then(repaymentScheduleMapper).should(never()).updateConfirmation(anyLong(), any(), any());
         then(repaymentScheduleMapper).should(never()).updateLastConfirmedInstallmentNo(anyLong(), anyInt());
     }
 
-    private record Confirmation(RepaymentAmountResponse amount, AppliedRateResponse rate,
-                                RepaymentScheduleStatus status) {
+    private record Confirmation(RepaymentAmountResponse amount, AppliedRateResponse rate) {
     }
 }
