@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.loan.mapper.LoanAccountMapper">
+
+    <!--
+        세 출처(회차, 기한이익상실, 만기 경과)를 모두 더한다.
+        전환하면 회차는 '…로 종료'로 닫혀 빠지고, 전환 전에는 대출 단위 테이블에 행이 없다.
+        옮긴 밀린 원금은 loan_principal_balance에 이미 들어 있어 더하지 않는다.
+    -->
+    <select id="findRemainingDebtTotal" resultType="java.math.BigDecimal">
+        <bind name="closedByAcceleration"
+              value="@com.repayment.global.code.RepaymentScheduleStatus@CLOSED_BY_ACCELERATION"/>
+        <bind name="closedByMaturityOverdue"
+              value="@com.repayment.global.code.RepaymentScheduleStatus@CLOSED_BY_MATURITY_OVERDUE"/>
+        SELECT la.loan_principal_balance
+               -- 이자 미납
+               + (SELECT COALESCE(SUM(rs.scheduled_interest - rs.paid_interest), 0)
+                  FROM repayment_schedule rs
+                  WHERE rs.loan_account_id = la.loan_account_id
+                    AND rs.confirmed_at IS NOT NULL
+                    AND rs.repayment_schedule_status_id NOT IN (#{closedByAcceleration}, #{closedByMaturityOverdue}))
+               + (SELECT COALESCE(SUM(a.carried_interest - a.paid_carried_interest), 0)
+                  FROM loan_acceleration a
+                  WHERE a.loan_account_id = la.loan_account_id)
+               + (SELECT COALESCE(SUM(adc.interest_amount - adc.paid_interest), 0)
+                  FROM acceleration_daily_charge adc
+                  JOIN loan_acceleration a ON a.loan_acceleration_id = adc.loan_acceleration_id
+                  WHERE a.loan_account_id = la.loan_account_id)
+               + (SELECT COALESCE(SUM(m.carried_interest - m.paid_carried_interest), 0)
+                  FROM loan_maturity_overdue m
+                  WHERE m.loan_account_id = la.loan_account_id)
+               -- 연체금 미납
+               + (SELECT COALESCE(SUM(idc.delinquency_charge - idc.paid_delinquency_charge), 0)
+                  FROM installment_delinquency_charge idc
+                  JOIN repayment_schedule rs ON rs.repayment_schedule_id = idc.repayment_schedule_id
+                  WHERE rs.loan_account_id = la.loan_account_id
+                    AND rs.repayment_schedule_status_id NOT IN (#{closedByAcceleration}, #{closedByMaturityOverdue}))
+               + (SELECT COALESCE(SUM(a.carried_delinquency_charge - a.paid_carried_delinquency_charge), 0)
+                  FROM loan_acceleration a
+                  WHERE a.loan_account_id = la.loan_account_id)
+               + (SELECT COALESCE(SUM(adc.delinquency_charge - adc.paid_delinquency_charge), 0)
+                  FROM acceleration_daily_charge adc
+                  JOIN loan_acceleration a ON a.loan_acceleration_id = adc.loan_acceleration_id
+                  WHERE a.loan_account_id = la.loan_account_id)
+               + (SELECT COALESCE(SUM(m.carried_delinquency_charge - m.paid_carried_delinquency_charge), 0)
+                  FROM loan_maturity_overdue m
+                  WHERE m.loan_account_id = la.loan_account_id)
+               + (SELECT COALESCE(SUM(mdc.delinquency_charge - mdc.paid_delinquency_charge), 0)
+                  FROM maturity_overdue_daily_charge mdc
+                  JOIN loan_maturity_overdue m ON m.loan_maturity_overdue_id = mdc.loan_maturity_overdue_id
+                  WHERE m.loan_account_id = la.loan_account_id)
+        FROM loan_account la
+        WHERE la.loan_account_id = #{loanAccountId}
+    </select>
+</mapper>
