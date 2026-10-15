@@ -290,19 +290,16 @@ class DelinquentRateCalculatorTest {
 
 ### 작업 순서
 
-1~5단계는 확인 없이 이어서 진행한다. 6단계는 사람과 함께 한다.
+1~6단계는 확인 없이 이어서 진행한다. 7단계는 사람과 함께 한다.
 
 1. 이슈 등록: `gh issue create --repo Loan-Repayment-System/repayment-backend`
 2. 브랜치 생성: `git checkout develop && git pull origin develop && git checkout -b {type}/{설명}`
 3. 구현 후 `./gradlew build`가 통과하는지 확인한다(Docker 필요).
 4. 커밋
 5. push: `git push -u origin {브랜치명}`
-6. PR 생성: PR 본문은 사람이 이해한 코드의 기록이다. Claude가 임의로 쓰지 않는다.
-   1. Claude가 바뀐 코드를 사람이 이해하기 쉽게 설명한다. 사람이 질문하면 답한다.
-   2. 사람이 충분히 이해한 뒤 PR 본문에 담을 방향을 제시한다.
-   3. Claude는 그 방향대로 `.github/PULL_REQUEST_TEMPLATE.md` 형식에 맞춰 본문을 쓰고 `gh pr create --base develop`으로 올린다.
-      제목은 `[#이슈번호] type: 한국어 설명`이다.
-   4. PR 링크를 알리고 멈춘다. 병합은 사람이 한다.
+6. PR 생성: push 직후 Claude가 `.github/PULL_REQUEST_TEMPLATE.md` 형식으로 초안 본문을 써서 `gh pr create --base develop`으로 바로 올린다. 방향을 먼저 묻지 않는다.
+   제목은 `[#이슈번호] type: 한국어 설명`이고, 마일스톤은 PR에 연결한다.
+7. 검토: 사람이 GitHub에서 코드와 본문을 검토하고 말로 수정을 지시한다. Claude는 최신 본문을 읽고 해당 부분만 고친다(`gh pr edit`). 병합은 사람이 한다.
 
    PR 본문에 'Generated with Claude Code' 같은 문구는 붙이지 않는다.
 
