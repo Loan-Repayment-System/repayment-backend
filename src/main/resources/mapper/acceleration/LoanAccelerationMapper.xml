@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.acceleration.mapper.LoanAccelerationMapper">
+
+    <select id="existsByLoanAccountId" resultType="boolean">
+        SELECT EXISTS (SELECT 1
+                       FROM loan_acceleration
+                       WHERE loan_account_id = #{loanAccountId})
+    </select>
+
+    <!--
+        '연체' 회차만 옮긴다. 금리는 예정일이 가장 이른 '연체' 회차의 적용 기준금리 + 적용 가산금리다.
+        연체금은 그 회차들의 미납(쌓인 연체금 - 낸 연체금)을 더한다.
+        계산한 값이라 컬럼 이름이 없는 네 값에 loan_acceleration 컬럼 이름으로 별칭을 붙인다.
+    -->
+    <select id="findCarryOver"
+            resultType="com.repayment.domain.acceleration.dto.response.LoanAccelerationCarryOverResponse">
+        <bind name="overdue" value="@com.repayment.global.code.RepaymentScheduleStatus@OVERDUE"/>
+        SELECT (SELECT oldest.applied_base_rate + oldest.applied_additional_rate
+                FROM repayment_schedule oldest
+                WHERE oldest.loan_account_id = #{loanAccountId}
+                  AND oldest.repayment_schedule_status_id = #{overdue}
+                ORDER BY oldest.scheduled_date
+                LIMIT 1) AS applied_interest_rate,
+               COALESCE(SUM(rs.scheduled_interest - rs.paid_interest), 0) AS carried_interest,
+               COALESCE(SUM(rs.scheduled_principal - rs.paid_principal), 0) AS carried_overdue_principal,
+               (SELECT COALESCE(SUM(idc.delinquency_charge - idc.paid_delinquency_charge), 0)
+                FROM installment_delinquency_charge idc
+                JOIN repayment_schedule charged ON charged.repayment_schedule_id = idc.repayment_schedule_id
+                WHERE charged.loan_account_id = #{loanAccountId}
+                  AND charged.repayment_schedule_status_id = #{overdue}) AS carried_delinquency_charge
+        FROM repayment_schedule rs
+        WHERE rs.loan_account_id = #{loanAccountId}
+          AND rs.repayment_schedule_status_id = #{overdue}
+    </select>
+
+    <insert id="insertAcceleration">
+        INSERT INTO loan_acceleration (loan_account_id, converted_date, applied_interest_rate,
+                                       carried_interest, carried_overdue_principal, carried_delinquency_charge)
+        VALUES (#{loanAccountId}, #{convertedDate}, #{carryOver.appliedInterestRate},
+                #{carryOver.carriedInterest}, #{carryOver.carriedOverduePrincipal}, #{carryOver.carriedDelinquencyCharge})
+    </insert>
+</mapper>
