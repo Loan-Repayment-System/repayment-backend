@@ -1,6 +1,7 @@
 package com.repayment.domain.loan.mapper;
 
 import com.repayment.TestcontainersConfig;
+import com.repayment.global.code.LoanStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,6 +14,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +32,10 @@ class LoanAccountMapperIntegrationTest {
     private static final int OVERDUE = 4;
     private static final int CLOSED_BY_ACCELERATION = 5;
     private static final int CLOSED_BY_MATURITY_OVERDUE = 6;
+
+    // loan_status
+    private static final int NORMAL_STATUS = 1;
+    private static final int OVERDUE_STATUS = 2;
 
     @Autowired
     private LoanAccountMapper loanAccountMapper;
@@ -162,6 +168,63 @@ class LoanAccountMapperIntegrationTest {
 
             // then
             assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("대출 상태를 바꿀 때")
+    class 대출_상태_갱신 {
+
+        @Test
+        @DisplayName("정상 대출 두 개 중 하나를 연체로 바꾸면 그 대출만 연체(2)가 되고 다른 대출은 정상(1) 그대로다")
+        void 그_대출_한_행만_바꾼다() {
+            // given
+            long target = insertLoanAccountWithStatus(contractId, "900-000-000001", NORMAL_STATUS);
+            long other = insertLoanAccountWithStatus(insertContract(), "900-000-000002", NORMAL_STATUS);
+
+            // when
+            loanAccountMapper.updateLoanStatus(target, LoanStatus.OVERDUE);
+
+            // then
+            assertThat(findLoanStatusId(target)).isEqualTo(OVERDUE_STATUS);
+            assertThat(findLoanStatusId(other)).isEqualTo(NORMAL_STATUS);
+        }
+
+        @Test
+        @DisplayName("이미 연체인 대출을 연체로 바꾸면 updated_at이 2026-01-01 00:00:00 그대로다")
+        void 값이_같으면_행을_고치지_않는다() {
+            // given
+            long loanAccountId = insertLoanAccountWithStatus(contractId, "900-000-000001", OVERDUE_STATUS);
+            jdbcTemplate.update("UPDATE loan_account SET updated_at = '2026-01-01 00:00:00' WHERE loan_account_id = ?",
+                    loanAccountId);
+
+            // when
+            loanAccountMapper.updateLoanStatus(loanAccountId, LoanStatus.OVERDUE);
+
+            // then
+            LocalDateTime updatedAt = jdbcTemplate.queryForObject(
+                    "SELECT updated_at FROM loan_account WHERE loan_account_id = ?", LocalDateTime.class, loanAccountId);
+            assertThat(updatedAt).isEqualTo(LocalDateTime.of(2026, 1, 1, 0, 0, 0));
+        }
+
+        private long insertLoanAccountWithStatus(long loanContractId, String accountNo, int loanStatusId) {
+            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, loan_status_id, "
+                    + "loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                    + "VALUES (?, ?, ?, ?, 10000000, 10, 0)", loanContractId, accountId, accountNo, loanStatusId);
+        }
+
+        // loan_account는 계약당 1개라 같은 조건의 계약을 하나 더 만든다
+        private long insertContract() {
+            return insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
+                    + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
+                    + "SELECT loan_product_id, member_id, contract_date, maturity_date, contract_principal, "
+                    + "contract_additional_rate, contract_base_rate, total_installments "
+                    + "FROM loan_contract WHERE loan_contract_id = ?", contractId);
+        }
+
+        private int findLoanStatusId(long loanAccountId) {
+            return jdbcTemplate.queryForObject(
+                    "SELECT loan_status_id FROM loan_account WHERE loan_account_id = ?", Integer.class, loanAccountId);
         }
     }
 
