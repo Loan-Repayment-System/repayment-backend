@@ -49,4 +49,13 @@
         SET repayment_schedule_status_id = #{status}
         WHERE repayment_schedule_id = #{repaymentScheduleId}
     </update>
+
+    <!-- 전환할 때 납입 완료가 아닌 회차(예정·납부 기한 도래·연체)를 모두 닫는다 -->
+    <update id="updateUnpaidInstallmentStatus">
+        <bind name="paid" value="@com.repayment.global.code.RepaymentScheduleStatus@PAID"/>
+        UPDATE repayment_schedule
+        SET repayment_schedule_status_id = #{status}
+        WHERE loan_account_id = #{loanAccountId}
+          AND repayment_schedule_status_id &lt;&gt; #{paid}
+    </update>
 </mapper>

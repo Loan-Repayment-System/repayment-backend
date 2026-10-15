@@ -191,6 +191,56 @@ class RepaymentScheduleMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("전환하며 회차를 닫을 때")
+    class 회차_닫기 {
+
+        @Test
+        @DisplayName("납부 기한 도래 1회·연체 2회·예정 3회는 기한이익상실로 종료되고, 납입 완료 4회와 다른 대출의 연체 회차는 그대로다")
+        void 납입_완료가_아닌_회차를_모두_닫는다() {
+            // given
+            jdbcTemplate.update("UPDATE repayment_schedule SET repayment_schedule_status_id = 4 "
+                    + "WHERE loan_account_id = ? AND installment_no = 2", loanAccountId);
+            long paidScheduleId = insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, "
+                    + "repayment_schedule_status_id, scheduled_date) VALUES (?, 4, 3, '2027-01-10')", loanAccountId);
+            long otherLoanAccountId = insertOtherLoanAccount();
+            long otherScheduleId = insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, "
+                    + "repayment_schedule_status_id, scheduled_date) VALUES (?, 1, 4, '2026-10-10')", otherLoanAccountId);
+
+            // when
+            repaymentScheduleMapper.updateUnpaidInstallmentStatus(loanAccountId, RepaymentScheduleStatus.CLOSED_BY_ACCELERATION);
+
+            // then
+            assertThat(jdbcTemplate.queryForList(
+                    "SELECT installment_no FROM repayment_schedule WHERE loan_account_id = ? "
+                            + "AND repayment_schedule_status_id = ? ORDER BY installment_no",
+                    Integer.class, loanAccountId, RepaymentScheduleStatus.CLOSED_BY_ACCELERATION.getId()))
+                    .containsExactly(1, 2, 3);
+            assertThat(findStatusId(paidScheduleId)).isEqualTo(RepaymentScheduleStatus.PAID.getId());
+            assertThat(findStatusId(otherScheduleId)).isEqualTo(RepaymentScheduleStatus.OVERDUE.getId());
+        }
+
+        // loan_account는 계약당 1개라 같은 조건의 계약을 하나 더 만든다
+        private long insertOtherLoanAccount() {
+            long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
+                    + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
+                    + "SELECT lc.loan_product_id, lc.member_id, lc.contract_date, lc.maturity_date, lc.contract_principal, "
+                    + "lc.contract_additional_rate, lc.contract_base_rate, lc.total_installments "
+                    + "FROM loan_contract lc JOIN loan_account la ON la.loan_contract_id = lc.loan_contract_id "
+                    + "WHERE la.loan_account_id = ?", loanAccountId);
+            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, loan_status_id, "
+                    + "loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                    + "SELECT ?, repayment_account_id, '900-000-000009', 1, 12000000, 10, 0 "
+                    + "FROM loan_account WHERE loan_account_id = ?", contractId, loanAccountId);
+        }
+
+        private int findStatusId(long repaymentScheduleId) {
+            return jdbcTemplate.queryForObject(
+                    "SELECT repayment_schedule_status_id FROM repayment_schedule WHERE repayment_schedule_id = ?",
+                    Integer.class, repaymentScheduleId);
+        }
+    }
+
     private long insertConfirmedSchedule(int installmentNo, String scheduledDate, String principal, String interest) {
         return insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, repayment_schedule_status_id, "
                         + "scheduled_date, scheduled_principal, scheduled_interest, applied_base_rate, "
