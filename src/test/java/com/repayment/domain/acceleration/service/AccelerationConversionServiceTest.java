@@ -48,7 +48,8 @@ class AccelerationConversionServiceTest {
         void 금액을_옮긴_뒤_회차를_닫는다() {
             // given
             LoanAccelerationCarryOverResponse carryOver = LoanAccelerationCarryOverResponse.builder()
-                    .appliedInterestRate(new BigDecimal("6"))
+                    .appliedBaseRate(new BigDecimal("4.5"))
+                    .appliedAdditionalRate(new BigDecimal("1.5"))
                     .carriedInterest(new BigDecimal("78000"))
                     .carriedOverduePrincipal(new BigDecimal("1502000"))
                     .carriedDelinquencyCharge(new BigDecimal("500"))

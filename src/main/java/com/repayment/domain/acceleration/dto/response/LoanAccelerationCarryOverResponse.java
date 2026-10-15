@@ -16,7 +16,8 @@ import java.math.BigDecimal;
 @Builder
 public class LoanAccelerationCarryOverResponse {
 
-    private BigDecimal appliedInterestRate;
+    private BigDecimal appliedBaseRate;
+    private BigDecimal appliedAdditionalRate;
     private BigDecimal carriedInterest;
     private BigDecimal carriedOverduePrincipal;
     private BigDecimal carriedDelinquencyCharge;

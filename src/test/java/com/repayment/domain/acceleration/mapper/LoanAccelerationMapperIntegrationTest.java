@@ -90,7 +90,7 @@ class LoanAccelerationMapperIntegrationTest {
     class 옮길_금액_조회 {
 
         @Test
-        @DisplayName("연체 1회(9/10, 6%)·2회(10/10, 6.5%)만 더해 이자 78,000원·원금 1,502,000원이고, 금리는 가장 오래된 1회의 6%다")
+        @DisplayName("연체 1회(9/10, 기준 4.5%)·2회(10/10, 기준 5.0%)만 더해 이자 78,000원·원금 1,502,000원이고, 금리는 가장 오래된 1회의 기준 4.5%·가산 1.5%다")
         void 연체_회차의_남은_금액을_더하고_가장_오래된_회차의_금리를_쓴다() {
             // given
             insertSchedule(2, OVERDUE, "2026-10-10", "802000", "48000", "0", "0", "5.0");
@@ -102,7 +102,8 @@ class LoanAccelerationMapperIntegrationTest {
             LoanAccelerationCarryOverResponse result = loanAccelerationMapper.findCarryOver(loanAccountId);
 
             // then
-            assertThat(result.getAppliedInterestRate()).isEqualByComparingTo("6");
+            assertThat(result.getAppliedBaseRate()).isEqualByComparingTo("4.5");
+            assertThat(result.getAppliedAdditionalRate()).isEqualByComparingTo("1.5");
             assertThat(result.getCarriedInterest()).isEqualByComparingTo("78000");
             assertThat(result.getCarriedOverduePrincipal()).isEqualByComparingTo("1502000");
             assertThat(result.getCarriedDelinquencyCharge()).isEqualByComparingTo("0");
@@ -134,11 +135,12 @@ class LoanAccelerationMapperIntegrationTest {
     class 기한이익상실_기록 {
 
         @Test
-        @DisplayName("(2026-10-15, 6%, 이자 78,000원, 원금 1,502,000원, 연체금 500원)을 넣으면 그 값 그대로 1행이 생기고 낸 금액은 모두 0원이다")
+        @DisplayName("(2026-10-15, 기준 4.5%, 가산 1.5%, 이자 78,000원, 원금 1,502,000원, 연체금 500원)을 넣으면 그 값 그대로 1행이 생기고 낸 금액은 모두 0원이다")
         void 넘긴_값_그대로_1행을_넣는다() {
             // given
             LoanAccelerationCarryOverResponse carryOver = LoanAccelerationCarryOverResponse.builder()
-                    .appliedInterestRate(new BigDecimal("6"))
+                    .appliedBaseRate(new BigDecimal("4.5"))
+                    .appliedAdditionalRate(new BigDecimal("1.5"))
                     .carriedInterest(new BigDecimal("78000"))
                     .carriedOverduePrincipal(new BigDecimal("1502000"))
                     .carriedDelinquencyCharge(new BigDecimal("500"))
@@ -149,14 +151,15 @@ class LoanAccelerationMapperIntegrationTest {
 
             // then
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                    "SELECT converted_date, applied_interest_rate, carried_interest, paid_carried_interest, "
+                    "SELECT converted_date, applied_base_rate, applied_additional_rate, carried_interest, paid_carried_interest, "
                             + "carried_overdue_principal, paid_carried_overdue_principal, "
                             + "carried_delinquency_charge, paid_carried_delinquency_charge "
                             + "FROM loan_acceleration WHERE loan_account_id = ?", loanAccountId);
             assertThat(rows).hasSize(1);
             Map<String, Object> row = rows.get(0);
             assertThat(row.get("converted_date").toString()).isEqualTo("2026-10-15");
-            assertThat((BigDecimal) row.get("applied_interest_rate")).isEqualByComparingTo("6");
+            assertThat((BigDecimal) row.get("applied_base_rate")).isEqualByComparingTo("4.5");
+            assertThat((BigDecimal) row.get("applied_additional_rate")).isEqualByComparingTo("1.5");
             assertThat((BigDecimal) row.get("carried_interest")).isEqualByComparingTo("78000");
             assertThat((BigDecimal) row.get("carried_overdue_principal")).isEqualByComparingTo("1502000");
             assertThat((BigDecimal) row.get("carried_delinquency_charge")).isEqualByComparingTo("500");
@@ -203,9 +206,9 @@ class LoanAccelerationMapperIntegrationTest {
     }
 
     private void insertAccelerationRow(long loanAccountId) {
-        insert("INSERT INTO loan_acceleration (loan_account_id, converted_date, applied_interest_rate, "
+        insert("INSERT INTO loan_acceleration (loan_account_id, converted_date, applied_base_rate, applied_additional_rate, "
                 + "carried_interest, carried_overdue_principal, carried_delinquency_charge) "
-                + "VALUES (?, '2026-10-15', 6, 0, 0, 0)", loanAccountId);
+                + "VALUES (?, '2026-10-15', 4.5, 1.5, 0, 0, 0)", loanAccountId);
     }
 
     private long insert(String sql, Object... args) {
