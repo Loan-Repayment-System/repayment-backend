@@ -182,13 +182,14 @@
 | 1 | ID | loan_acceleration_id / loan_maturity_overdue_id | BIGINT | PK | N | AUTO_INCREMENT | |
 | 2 | 대출계좌ID | loan_account_id | BIGINT | FK, UQ | N | | |
 | 3 | 전환일 | converted_date | DATE | | N | | |
-| 4 | 적용 금리 | applied_interest_rate | DECIMAL(10,5) | | N | | 기한이익상실: 가장 오래 밀린 회차, 만기 경과: 마지막 회차 |
-| 5 | 옮긴 이자 | carried_interest | DECIMAL(23,4) | | N | | |
-| 6 | 낸 옮긴 이자 | paid_carried_interest | DECIMAL(23,4) | | N | 0 | |
-| 7 | 옮긴 밀린 원금 | carried_overdue_principal | DECIMAL(23,4) | | N | | |
-| 8 | 낸 옮긴 밀린 원금 | paid_carried_overdue_principal | DECIMAL(23,4) | | N | 0 | |
-| 9 | 옮긴 연체금 | carried_delinquency_charge | DECIMAL(23,4) | | N | | |
-| 10 | 낸 옮긴 연체금 | paid_carried_delinquency_charge | DECIMAL(23,4) | | N | 0 | |
+| 4 | 적용 기준금리 | applied_base_rate | DECIMAL(10,5) | | N | | 기한이익상실: 가장 오래 밀린 회차, 만기 경과: 마지막 회차 |
+| 5 | 적용 가산금리 | applied_additional_rate | DECIMAL(10,5) | | N | | 4와 같은 회차 |
+| 6 | 옮긴 이자 | carried_interest | DECIMAL(23,4) | | N | | |
+| 7 | 낸 옮긴 이자 | paid_carried_interest | DECIMAL(23,4) | | N | 0 | |
+| 8 | 옮긴 밀린 원금 | carried_overdue_principal | DECIMAL(23,4) | | N | | |
+| 9 | 낸 옮긴 밀린 원금 | paid_carried_overdue_principal | DECIMAL(23,4) | | N | 0 | |
+| 10 | 옮긴 연체금 | carried_delinquency_charge | DECIMAL(23,4) | | N | | |
+| 11 | 낸 옮긴 연체금 | paid_carried_delinquency_charge | DECIMAL(23,4) | | N | 0 | |
 
 ### 하루 기록 (acceleration_daily_charge / maturity_overdue_daily_charge)
 
