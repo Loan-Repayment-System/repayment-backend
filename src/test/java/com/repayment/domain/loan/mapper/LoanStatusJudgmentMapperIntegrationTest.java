@@ -1,6 +1,7 @@
 package com.repayment.domain.loan.mapper;
 
 import com.repayment.TestcontainersConfig;
+import com.repayment.domain.loan.dto.response.LoanStatusJudgmentResponse;
 import com.repayment.domain.loan.dto.response.LoanStatusJudgmentTargetResponse;
 import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.RepaymentMethod;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 @SpringBootTest
 @Import(TestcontainersConfig.class)
@@ -41,22 +43,20 @@ class LoanStatusJudgmentMapperIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    private long memberId;
+    private long accountId;
+    private long productId;
     private long loanAccountId;
 
     // 원리금균등·고정금리, 약정 30,000,000원, 만기 2027-06-30, 12회
     @BeforeEach
     void setUp() {
-        long memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('judgment-test', 'pw', '테스트')");
-        long accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
+        memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('judgment-test', 'pw', '테스트')");
+        accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
                 + "VALUES (?, '110-000-000002', 0, 1)", memberId);
-        long productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
+        productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
                 + "VALUES (1, 2, '테스트 상품', 1.5)");
-        long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
-                + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
-                + "VALUES (?, ?, '2026-06-30', '2027-06-30', 30000000, 1.5, 4.5, 12)", productId, memberId);
-        loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
-                + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                + "VALUES (?, ?, '900-000-000002', 1, 30000000, 10, 0)", contractId, accountId);
+        loanAccountId = insertLoanAccount("900-000-000002");
     }
 
     @Nested
@@ -133,6 +133,31 @@ class LoanStatusJudgmentMapperIntegrationTest {
     }
 
     @Nested
+    @DisplayName("최근 판정을 조회할 때")
+    class 최근_판정_조회 {
+
+        @Test
+        @DisplayName("판정 행이 1/10 21 → 1/11 21 → 1/11 1 순으로 쌓였고 다른 대출 행이 있으면 그 대출의 (1/11, 1), (1/11, 21) 2행만 이 순서로 가져온다")
+        void 그_대출의_최근_2행을_id_역순으로_가져온다() {
+            // given
+            insertJudgment("2027-01-10", 21);
+            insertJudgment("2027-01-11", 21);
+            insertJudgment("2027-01-11", 1);
+            insertJudgmentOf(insertLoanAccount("900-000-000003"), "2027-01-11", 0);
+
+            // when
+            List<LoanStatusJudgmentResponse> result = loanStatusJudgmentMapper.findRecentJudgments(loanAccountId);
+
+            // then
+            assertThat(result)
+                    .extracting(LoanStatusJudgmentResponse::getBusinessDate, LoanStatusJudgmentResponse::getLoanJudgmentStatusId)
+                    .containsExactly(
+                            tuple(LocalDate.of(2027, 1, 11), LoanJudgmentStatus.MATURITY_OVERDUE),
+                            tuple(LocalDate.of(2027, 1, 11), LoanJudgmentStatus.INSTALLMENT_OVERDUE));
+        }
+    }
+
+    @Nested
     @DisplayName("판정을 기록할 때")
     class 판정_기록 {
 
@@ -153,7 +178,21 @@ class LoanStatusJudgmentMapperIntegrationTest {
         }
     }
 
+    // loan_account는 계약당 1개라 대출마다 계약을 만든다
+    private long insertLoanAccount(String accountNo) {
+        long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
+                + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
+                + "VALUES (?, ?, '2026-06-30', '2027-06-30', 30000000, 1.5, 4.5, 12)", productId, memberId);
+        return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
+                + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                + "VALUES (?, ?, ?, 1, 30000000, 10, 0)", contractId, accountId, accountNo);
+    }
+
     private void insertJudgment(String businessDate, int statusId) {
+        insertJudgmentOf(loanAccountId, businessDate, statusId);
+    }
+
+    private void insertJudgmentOf(long loanAccountId, String businessDate, int statusId) {
         insert("INSERT INTO loan_status_judgment (loan_account_id, business_date, loan_judgment_status_id) "
                 + "VALUES (?, ?, ?)", loanAccountId, businessDate, statusId);
     }

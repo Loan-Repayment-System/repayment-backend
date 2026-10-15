@@ -34,6 +34,17 @@
         WHERE la.loan_account_id = #{loanAccountId}
     </select>
 
+    <!-- 가장 최근 판정 2행. 첫 행이 오늘 판정, 둘째 행이 직전 판정이다. -->
+    <select id="findRecentJudgments"
+            resultType="com.repayment.domain.loan.dto.response.LoanStatusJudgmentResponse">
+        SELECT business_date,
+               loan_judgment_status_id
+        FROM loan_status_judgment
+        WHERE loan_account_id = #{loanAccountId}
+        ORDER BY loan_status_judgment_id DESC
+        LIMIT 2
+    </select>
+
     <insert id="insertJudgment">
         INSERT INTO loan_status_judgment (loan_account_id, business_date, loan_judgment_status_id)
         VALUES (#{loanAccountId}, #{businessDate}, #{status})
