@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.delinquency.mapper.InstallmentDelinquencyChargeMapper">
+
+    <!--
+        그 대출의 '연체' 회차 중 그 날짜 연체금 행이 아직 없는 회차만 가져온다.
+        같은 기준일로 다시 실행하면 이미 쌓은 회차는 빠진다.
+    -->
+    <select id="findAccrualTargets"
+            resultType="com.repayment.domain.delinquency.dto.response.InstallmentDelinquencyChargeTargetResponse">
+        <bind name="overdue" value="@com.repayment.global.code.RepaymentScheduleStatus@OVERDUE"/>
+        SELECT rs.repayment_schedule_id,
+               rs.scheduled_principal,
+               rs.scheduled_interest,
+               rs.paid_principal,
+               rs.paid_interest,
+               rs.applied_base_rate,
+               rs.applied_additional_rate
+        FROM repayment_schedule rs
+        WHERE rs.loan_account_id = #{loanAccountId}
+          AND rs.repayment_schedule_status_id = #{overdue}
+          AND NOT EXISTS (SELECT 1
+                          FROM installment_delinquency_charge idc
+                          WHERE idc.repayment_schedule_id = rs.repayment_schedule_id
+                            AND idc.charge_date = #{chargeDate})
+        ORDER BY rs.installment_no
+    </select>
+
+    <insert id="insertCharge">
+        INSERT INTO installment_delinquency_charge (repayment_schedule_id, charge_date, loan_judgment_status_id,
+                                                    delinquency_target_amount, delinquency_rate, delinquency_charge,
+                                                    paid_delinquency_charge, delinquency_status_id)
+        VALUES (#{repaymentScheduleId}, #{chargeDate}, #{loanJudgmentStatusId},
+                #{delinquencyTargetAmount}, #{delinquencyRate}, #{delinquencyCharge},
+                0, #{delinquencyStatusId})
+    </insert>
+</mapper>
