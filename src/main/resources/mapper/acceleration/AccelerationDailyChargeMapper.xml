@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.acceleration.mapper.AccelerationDailyChargeMapper">
+
+    <select id="findAccrualTarget"
+            resultType="com.repayment.domain.acceleration.dto.response.AccelerationDailyChargeTargetResponse">
+        SELECT a.loan_acceleration_id,
+               a.applied_base_rate,
+               a.applied_additional_rate,
+               a.carried_interest,
+               a.paid_carried_interest,
+               a.carried_overdue_principal,
+               a.paid_carried_overdue_principal,
+               la.loan_principal_balance
+        FROM loan_acceleration a
+        JOIN loan_account la ON la.loan_account_id = a.loan_account_id
+        WHERE a.loan_account_id = #{loanAccountId}
+    </select>
+
+    <select id="existsByLoanAccelerationIdAndChargeDate" resultType="boolean">
+        SELECT EXISTS (SELECT 1
+                       FROM acceleration_daily_charge
+                       WHERE loan_acceleration_id = #{loanAccelerationId}
+                         AND charge_date = #{chargeDate})
+    </select>
+
+    <insert id="insertCharge">
+        INSERT INTO acceleration_daily_charge (loan_acceleration_id, charge_date, loan_judgment_status_id,
+                                               delinquency_target_amount, delinquency_rate, delinquency_charge,
+                                               interest_amount, delinquency_status_id)
+        VALUES (#{loanAccelerationId}, #{chargeDate}, #{loanJudgmentStatusId},
+                #{delinquencyTargetAmount}, #{delinquencyRate}, #{delinquencyCharge},
+                #{interestAmount}, #{delinquencyStatusId})
+    </insert>
+</mapper>
