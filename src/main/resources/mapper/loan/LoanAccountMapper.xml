@@ -51,4 +51,11 @@
         FROM loan_account la
         WHERE la.loan_account_id = #{loanAccountId}
     </select>
+
+    <!-- 값이 같으면 MySQL이 행을 고치지 않아 updated_at도 그대로다. -->
+    <update id="updateLoanStatus">
+        UPDATE loan_account
+        SET loan_status_id = #{loanStatus}
+        WHERE loan_account_id = #{loanAccountId}
+    </update>
 </mapper>
