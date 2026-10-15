@@ -175,7 +175,7 @@
 
 ### 기한이익상실 (loan_acceleration) / 만기 경과 (loan_maturity_overdue)
 
-대출당 1행. 컬럼 구성이 같다. 전환할 때 밀린 금액을 `carried_*`로 옮겨 적고 낸 만큼 `paid_*`에 더한다.
+대출당 1행. 전환할 때 밀린 금액을 `carried_*`로 옮겨 적고 낸 만큼 `paid_*`에 더한다. 8·9는 기한이익상실에만 있다(만기 경과는 밀린 원금이 원금잔액과 같아 두지 않는다).
 
 | No. | 컬럼 한글명 | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 기본값 | 비고 |
 |---|---|---|---|---|---|---|---|
@@ -186,8 +186,8 @@
 | 5 | 적용 가산금리 | applied_additional_rate | DECIMAL(10,5) | | N | | 4와 같은 회차 |
 | 6 | 옮긴 이자 | carried_interest | DECIMAL(23,4) | | N | | |
 | 7 | 낸 옮긴 이자 | paid_carried_interest | DECIMAL(23,4) | | N | 0 | |
-| 8 | 옮긴 밀린 원금 | carried_overdue_principal | DECIMAL(23,4) | | N | | |
-| 9 | 낸 옮긴 밀린 원금 | paid_carried_overdue_principal | DECIMAL(23,4) | | N | 0 | |
+| 8 | 옮긴 밀린 원금 | carried_overdue_principal | DECIMAL(23,4) | | N | | 기한이익상실만 |
+| 9 | 낸 옮긴 밀린 원금 | paid_carried_overdue_principal | DECIMAL(23,4) | | N | 0 | 기한이익상실만 |
 | 10 | 옮긴 연체금 | carried_delinquency_charge | DECIMAL(23,4) | | N | | |
 | 11 | 낸 옮긴 연체금 | paid_carried_delinquency_charge | DECIMAL(23,4) | | N | 0 | |
 
