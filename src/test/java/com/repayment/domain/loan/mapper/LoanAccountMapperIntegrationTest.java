@@ -115,9 +115,9 @@ class LoanAccountMapperIntegrationTest {
             long closed = insertSchedule(loanAccountId, 12, CLOSED_BY_MATURITY_OVERDUE, "50000", "0");
             insertInstallmentCharge(closed, "2027-01-11", "2000", "0");
             long maturityOverdueId = insert("INSERT INTO loan_maturity_overdue (loan_account_id, converted_date, "
-                    + "applied_base_rate, applied_additional_rate, carried_interest, carried_overdue_principal, "
+                    + "applied_base_rate, applied_additional_rate, carried_interest, "
                     + "carried_delinquency_charge, paid_carried_delinquency_charge) "
-                    + "VALUES (?, '2027-01-11', 4.5, 1.5, 50000, 10000000, 2000, 2000)",
+                    + "VALUES (?, '2027-01-11', 4.5, 1.5, 50000, 2000, 2000)",
                     loanAccountId);
             insertMaturityOverdueCharge(maturityOverdueId, "2027-01-11");
             insertMaturityOverdueCharge(maturityOverdueId, "2027-01-12");

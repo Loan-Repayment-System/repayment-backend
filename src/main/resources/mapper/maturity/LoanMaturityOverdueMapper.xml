@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.maturity.mapper.LoanMaturityOverdueMapper">
+
+    <select id="existsByLoanAccountId" resultType="boolean">
+        SELECT EXISTS (SELECT 1
+                       FROM loan_maturity_overdue
+                       WHERE loan_account_id = #{loanAccountId})
+    </select>
+
+    <!--
+        금리는 마지막 회차의 적용 기준금리·적용 가산금리다.
+        이자와 연체금은 '연체' 회차들의 미납(이자 - 낸 이자, 연체금 - 낸 연체금)을 더한다.
+        서브쿼리·집계로 구한 값이라 loan_maturity_overdue 컬럼 이름으로 별칭을 붙인다.
+    -->
+    <select id="findCarryOver"
+            resultType="com.repayment.domain.maturity.dto.response.LoanMaturityOverdueCarryOverResponse">
+        <bind name="overdue" value="@com.repayment.global.code.RepaymentScheduleStatus@OVERDUE"/>
+        SELECT (SELECT last.applied_base_rate
+                FROM repayment_schedule last
+                WHERE last.loan_account_id = #{loanAccountId}
+                ORDER BY last.installment_no DESC
+                LIMIT 1) AS applied_base_rate,
+               (SELECT last.applied_additional_rate
+                FROM repayment_schedule last
+                WHERE last.loan_account_id = #{loanAccountId}
+                ORDER BY last.installment_no DESC
+                LIMIT 1) AS applied_additional_rate,
+               COALESCE(SUM(rs.scheduled_interest - rs.paid_interest), 0) AS carried_interest,
+               (SELECT COALESCE(SUM(idc.delinquency_charge - idc.paid_delinquency_charge), 0)
+                FROM installment_delinquency_charge idc
+                JOIN repayment_schedule charged ON charged.repayment_schedule_id = idc.repayment_schedule_id
+                WHERE charged.loan_account_id = #{loanAccountId}
+                  AND charged.repayment_schedule_status_id = #{overdue}) AS carried_delinquency_charge
+        FROM repayment_schedule rs
+        WHERE rs.loan_account_id = #{loanAccountId}
+          AND rs.repayment_schedule_status_id = #{overdue}
+    </select>
+
+    <insert id="insertMaturityOverdue">
+        INSERT INTO loan_maturity_overdue (loan_account_id, converted_date, applied_base_rate, applied_additional_rate,
+                                           carried_interest, carried_delinquency_charge)
+        VALUES (#{loanAccountId}, #{convertedDate}, #{carryOver.appliedBaseRate}, #{carryOver.appliedAdditionalRate},
+                #{carryOver.carriedInterest}, #{carryOver.carriedDelinquencyCharge})
+    </insert>
+</mapper>

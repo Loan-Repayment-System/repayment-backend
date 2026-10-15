@@ -26,14 +26,14 @@ class FlywayMigrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void 마이그레이션_V0부터_V6까지_성공으로_기록된다() {
+    void 마이그레이션_V0부터_V7까지_성공으로_기록된다() {
         List<Map<String, Object>> history = jdbcTemplate.queryForList(
                 "SELECT version, success FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank");
 
         assertThat(history)
                 .extracting(row -> row.get("version"), row -> toBoolean(row.get("success")))
                 .containsExactly(tuple("0", true), tuple("1", true), tuple("2", true), tuple("3", true), tuple("4", true), tuple("5", true),
-                        tuple("6", true));
+                        tuple("6", true), tuple("7", true));
     }
 
     @Test
