@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.loan.mapper.LoanStatusJudgmentMapper">
+
+    <!--
+        직전 판정은 그 대출의 loan_status_judgment_id가 가장 큰 행이고, 행이 없으면 0 정상이다.
+        밀린 회차는 상태가 '연체'인 회차다.
+        계산한 값이라 컬럼 이름이 없는 세 값만 별칭을 붙인다.
+    -->
+    <select id="findJudgmentTarget"
+            resultType="com.repayment.domain.loan.dto.response.LoanStatusJudgmentTargetResponse">
+        <bind name="normal" value="@com.repayment.global.code.LoanJudgmentStatus@NORMAL"/>
+        <bind name="overdue" value="@com.repayment.global.code.RepaymentScheduleStatus@OVERDUE"/>
+        SELECT la.loan_account_id,
+               COALESCE((SELECT lsj.loan_judgment_status_id
+                         FROM loan_status_judgment lsj
+                         WHERE lsj.loan_account_id = la.loan_account_id
+                         ORDER BY lsj.loan_status_judgment_id DESC
+                         LIMIT 1), #{normal}) AS previous_judgment_status,
+               lp.repayment_method_id,
+               lc.contract_principal,
+               lc.maturity_date,
+               (SELECT COUNT(*)
+                FROM repayment_schedule rs
+                WHERE rs.loan_account_id = la.loan_account_id
+                  AND rs.repayment_schedule_status_id = #{overdue}) AS overdue_installment_count,
+               (SELECT MIN(rs.scheduled_date)
+                FROM repayment_schedule rs
+                WHERE rs.loan_account_id = la.loan_account_id
+                  AND rs.repayment_schedule_status_id = #{overdue}) AS oldest_overdue_date
+        FROM loan_account la
+        JOIN loan_contract lc ON lc.loan_contract_id = la.loan_contract_id
+        JOIN loan_product lp ON lp.loan_product_id = lc.loan_product_id
+        WHERE la.loan_account_id = #{loanAccountId}
+    </select>
+
+    <insert id="insertJudgment">
+        INSERT INTO loan_status_judgment (loan_account_id, business_date, loan_judgment_status_id)
+        VALUES (#{loanAccountId}, #{businessDate}, #{status})
+    </insert>
+</mapper>
