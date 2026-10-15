@@ -42,6 +42,10 @@ public enum ErrorCode {
 
     // 만기 경과
     LOAN_MATURITY_OVERDUE_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "만기 경과 전환 기록을 찾지 못했습니다."),
+
+    // 이체
+    ACCOUNT_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "계좌를 찾지 못했습니다."),
+    INSUFFICIENT_BALANCE(HttpStatus.UNPROCESSABLE_ENTITY, "출금 계좌의 잔액이 부족합니다."),
     ;
 
     private final HttpStatus status;
