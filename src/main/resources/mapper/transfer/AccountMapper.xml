@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.transfer.mapper.AccountMapper">
+
+    <!-- 같은 계좌를 쓰는 다른 이체는 이 트랜잭션이 끝날 때까지 기다린다. -->
+    <select id="findByIdForUpdate"
+            resultType="com.repayment.domain.transfer.dto.response.TransferAccountResponse">
+        SELECT account_id, account_no, balance
+        FROM account
+        WHERE account_id = #{accountId}
+        FOR UPDATE
+    </select>
+
+    <update id="updateBalance">
+        UPDATE account
+        SET balance = #{balance}
+        WHERE account_id = #{accountId}
+    </update>
+</mapper>
