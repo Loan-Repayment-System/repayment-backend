@@ -24,6 +24,7 @@ public enum ErrorCode {
 
     // 대출
     LOAN_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "대출을 찾을 수 없습니다."),
+    LOAN_STATUS_JUDGMENT_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "기준일의 대출 상태 판정을 찾지 못했습니다."),
 
     // 대출 스케줄
     REPAYMENT_SCHEDULE_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "상환 회차를 찾지 못했습니다."),
