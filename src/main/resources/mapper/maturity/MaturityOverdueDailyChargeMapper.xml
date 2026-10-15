@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.maturity.mapper.MaturityOverdueDailyChargeMapper">
+
+    <select id="findAccrualTarget"
+            resultType="com.repayment.domain.maturity.dto.response.MaturityOverdueDailyChargeTargetResponse">
+        SELECT m.loan_maturity_overdue_id,
+               m.applied_base_rate,
+               m.applied_additional_rate,
+               la.loan_principal_balance
+        FROM loan_maturity_overdue m
+        JOIN loan_account la ON la.loan_account_id = m.loan_account_id
+        WHERE m.loan_account_id = #{loanAccountId}
+    </select>
+
+    <select id="existsByLoanMaturityOverdueIdAndChargeDate" resultType="boolean">
+        SELECT EXISTS (SELECT 1
+                       FROM maturity_overdue_daily_charge
+                       WHERE loan_maturity_overdue_id = #{loanMaturityOverdueId}
+                         AND charge_date = #{chargeDate})
+    </select>
+
+    <!-- interest_amount는 늘 0이라 적지 않고 기본값을 쓴다. -->
+    <insert id="insertCharge">
+        INSERT INTO maturity_overdue_daily_charge (loan_maturity_overdue_id, charge_date, loan_judgment_status_id,
+                                                   delinquency_target_amount, delinquency_rate, delinquency_charge,
+                                                   delinquency_status_id)
+        VALUES (#{loanMaturityOverdueId}, #{chargeDate}, #{loanJudgmentStatusId},
+                #{delinquencyTargetAmount}, #{delinquencyRate}, #{delinquencyCharge},
+                #{delinquencyStatusId})
+    </insert>
+</mapper>
