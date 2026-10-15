@@ -31,6 +31,9 @@ public enum ErrorCode {
     INVALID_CONFIRM_DATE(HttpStatus.INTERNAL_SERVER_ERROR, "확정할 수 있는 기간이 아닙니다."),
     INVALID_INSTALLMENT_CONFIRM_ORDER(HttpStatus.INTERNAL_SERVER_ERROR, "앞 회차를 먼저 확정해야 합니다."),
     UNCONFIRMED_INSTALLMENT_PAST_DUE(HttpStatus.INTERNAL_SERVER_ERROR, "예정일이 지났는데 금액이 확정되지 않은 회차입니다."),
+
+    // 연체금
+    INSTALLMENT_DELINQUENCY_NOT_APPLICABLE(HttpStatus.INTERNAL_SERVER_ERROR, "회차 연체금을 쌓을 수 없는 판정입니다."),
     ;
 
     private final HttpStatus status;
