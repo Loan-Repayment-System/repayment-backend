@@ -7,6 +7,7 @@ import com.repayment.global.code.RepaymentScheduleStatus;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 @Mapper
@@ -23,6 +24,12 @@ public interface RepaymentScheduleMapper {
 
     int updateStatus(@Param("repaymentScheduleId") Long repaymentScheduleId,
                      @Param("status") RepaymentScheduleStatus status);
+
+    int updateAddPaidInterest(@Param("repaymentScheduleId") Long repaymentScheduleId,
+                              @Param("amount") BigDecimal amount);
+
+    int updateAddPaidPrincipal(@Param("repaymentScheduleId") Long repaymentScheduleId,
+                               @Param("amount") BigDecimal amount);
 
     int updateUnpaidInstallmentStatus(@Param("loanAccountId") Long loanAccountId,
                                       @Param("status") RepaymentScheduleStatus status);

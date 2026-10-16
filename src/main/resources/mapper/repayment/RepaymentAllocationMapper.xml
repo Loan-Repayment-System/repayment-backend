@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.repayment.mapper.RepaymentAllocationMapper">
+
+    <insert id="insertAllocation">
+        INSERT INTO repayment_allocation (repayment_id, repayment_target_type_id, target_id, paid_amount)
+        VALUES (#{repaymentId}, #{repaymentTargetTypeId}, #{targetId}, #{paidAmount})
+    </insert>
+</mapper>

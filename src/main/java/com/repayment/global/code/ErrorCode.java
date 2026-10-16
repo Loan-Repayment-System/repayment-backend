@@ -53,6 +53,8 @@ public enum ErrorCode {
     INVALID_REPAYMENT_AMOUNT(HttpStatus.BAD_REQUEST, "상환 금액은 1원 이상 원 단위로 입력해 주세요."),
     NOTHING_TO_REPAY(HttpStatus.UNPROCESSABLE_ENTITY, "지금 갚을 금액이 없습니다."),
     REPAYMENT_EXCEEDS_REPAYABLE_AMOUNT(HttpStatus.UNPROCESSABLE_ENTITY, "상환 금액이 갚을 금액보다 많습니다."),
+    REPAYMENT_TARGET_TYPE_MISMATCH(HttpStatus.INTERNAL_SERVER_ERROR, "충당할 수 없는 종류의 대상이 있습니다."),
+    REPAYMENT_AMOUNT_LEFT_OVER(HttpStatus.INTERNAL_SERVER_ERROR, "충당하고 남은 금액이 있습니다."),
     ;
 
     private final HttpStatus status;

@@ -51,6 +51,18 @@
     </update>
 
     <!-- 전환할 때 납입 완료가 아닌 회차(예정·납부 기한 도래·연체)를 모두 닫는다 -->
+    <update id="updateAddPaidInterest">
+        UPDATE repayment_schedule
+        SET paid_interest = paid_interest + #{amount}
+        WHERE repayment_schedule_id = #{repaymentScheduleId}
+    </update>
+
+    <update id="updateAddPaidPrincipal">
+        UPDATE repayment_schedule
+        SET paid_principal = paid_principal + #{amount}
+        WHERE repayment_schedule_id = #{repaymentScheduleId}
+    </update>
+
     <update id="updateUnpaidInstallmentStatus">
         <bind name="paid" value="@com.repayment.global.code.RepaymentScheduleStatus@PAID"/>
         UPDATE repayment_schedule

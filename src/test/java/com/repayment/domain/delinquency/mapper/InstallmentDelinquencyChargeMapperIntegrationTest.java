@@ -147,6 +147,38 @@ class InstallmentDelinquencyChargeMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("충당한 연체금을 더할 때")
+    class 충당한_연체금_더하기 {
+
+        @Test
+        @DisplayName("연체금 300원 중 100원 낸 진행중 행에 200원을 더하면 낸 연체금은 300원이고 상태는 진행중 그대로다")
+        void 금액만_더하고_상태는_바꾸지_않는다() {
+            // given
+            long chargeId = insertChargeRow(insertSchedule(loanAccountId, 1, OVERDUE), "300", "100");
+
+            // when
+            installmentDelinquencyChargeMapper.updateAddPaidDelinquencyCharge(chargeId, new BigDecimal("200"));
+
+            // then
+            Map<String, Object> row = findChargeRow(chargeId);
+            assertThat((BigDecimal) row.get("paid_delinquency_charge")).isEqualByComparingTo("300");
+            assertThat(row.get("delinquency_status_id")).isEqualTo(1);
+        }
+
+        private long insertChargeRow(long repaymentScheduleId, String charge, String paid) {
+            return insert("INSERT INTO installment_delinquency_charge (repayment_schedule_id, charge_date, "
+                            + "loan_judgment_status_id, delinquency_target_amount, delinquency_rate, delinquency_charge, "
+                            + "paid_delinquency_charge, delinquency_status_id) VALUES (?, '2026-10-11', 21, 830000, 9, ?, ?, 1)",
+                    repaymentScheduleId, new BigDecimal(charge), new BigDecimal(paid));
+        }
+
+        private Map<String, Object> findChargeRow(long chargeId) {
+            return jdbcTemplate.queryForMap("SELECT paid_delinquency_charge, delinquency_status_id "
+                    + "FROM installment_delinquency_charge WHERE installment_delinquency_charge_id = ?", chargeId);
+        }
+    }
+
     // loan_account는 계약당 1개라 대출마다 계약을 만든다
     private long insertLoanAccount(String accountNo) {
         long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
