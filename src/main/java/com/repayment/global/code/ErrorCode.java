@@ -37,7 +37,6 @@ public enum ErrorCode {
 
     // 연체금
     INSTALLMENT_DELINQUENCY_NOT_APPLICABLE(HttpStatus.INTERNAL_SERVER_ERROR, "회차 연체금을 쌓을 수 없는 판정입니다."),
-    INSTALLMENT_DELINQUENCY_CHARGE_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "회차 연체금을 찾지 못했습니다."),
 
     // 기한이익상실
     LOAN_ACCELERATION_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "기한이익상실 전환 기록을 찾지 못했습니다."),

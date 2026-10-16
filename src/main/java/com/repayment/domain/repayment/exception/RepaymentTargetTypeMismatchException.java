@@ -1,6 +1,6 @@
 package com.repayment.domain.repayment.exception;
 
-import com.repayment.domain.repayment.service.RepaymentTargetType;
+import com.repayment.global.code.RepaymentTargetType;
 import com.repayment.global.code.ErrorCode;
 import com.repayment.global.exception.BusinessException;
 

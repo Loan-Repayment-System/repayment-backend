@@ -20,7 +20,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -177,37 +176,6 @@ class InstallmentDelinquencyChargeMapperIntegrationTest {
         private Map<String, Object> findChargeRow(long chargeId) {
             return jdbcTemplate.queryForMap("SELECT paid_delinquency_charge, delinquency_status_id "
                     + "FROM installment_delinquency_charge WHERE installment_delinquency_charge_id = ?", chargeId);
-        }
-    }
-
-    @Nested
-    @DisplayName("연체금의 회차를 조회할 때")
-    class 연체금의_회차_조회 {
-
-        @Test
-        @DisplayName("2회 연체금 행을 조회하면 2회의 회차 ID가 나온다")
-        void 연체금_행의_회차_ID가_나온다() {
-            // given
-            insertSchedule(loanAccountId, 1, PAID);
-            long second = insertSchedule(loanAccountId, 2, OVERDUE);
-            insertChargeRow(second, "2026-10-11");
-            long chargeId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-
-            // when
-            Optional<Long> result = installmentDelinquencyChargeMapper.findRepaymentScheduleId(chargeId);
-
-            // then
-            assertThat(result).contains(second);
-        }
-
-        @Test
-        @DisplayName("없는 연체금 ID면 빈 값이다")
-        void 없는_연체금은_빈_값이다() {
-            // when
-            Optional<Long> result = installmentDelinquencyChargeMapper.findRepaymentScheduleId(-1L);
-
-            // then
-            assertThat(result).isEmpty();
         }
     }
 

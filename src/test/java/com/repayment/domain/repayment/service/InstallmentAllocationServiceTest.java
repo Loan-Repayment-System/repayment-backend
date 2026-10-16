@@ -1,14 +1,14 @@
 package com.repayment.domain.repayment.service;
 
-import com.repayment.domain.delinquency.exception.InstallmentDelinquencyChargeNotFoundException;
 import com.repayment.domain.delinquency.mapper.InstallmentDelinquencyChargeMapper;
 import com.repayment.domain.loan.mapper.LoanAccountMapper;
-import com.repayment.domain.repayment.dto.response.InstallmentRepaymentResponse;
+import com.repayment.domain.repayment.dto.response.RepaymentAllocationResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentTargetResponse;
 import com.repayment.domain.repayment.exception.RepaymentAmountLeftOverException;
 import com.repayment.domain.repayment.exception.RepaymentTargetTypeMismatchException;
-import com.repayment.domain.repayment.mapper.InstallmentRepaymentMapper;
+import com.repayment.domain.repayment.mapper.RepaymentAllocationMapper;
 import com.repayment.domain.schedule.mapper.RepaymentScheduleMapper;
+import com.repayment.global.code.RepaymentTargetType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,9 +20,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 
-import static com.repayment.domain.repayment.service.RepaymentTargetType.*;
+import static com.repayment.global.code.RepaymentTargetType.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -52,7 +51,7 @@ class InstallmentAllocationServiceTest {
     private LoanAccountMapper loanAccountMapper;
 
     @Mock
-    private InstallmentRepaymentMapper installmentRepaymentMapper;
+    private RepaymentAllocationMapper repaymentAllocationMapper;
 
     @InjectMocks
     private InstallmentAllocationService installmentAllocationService;
@@ -62,11 +61,8 @@ class InstallmentAllocationServiceTest {
     class 연체_회차와_납부_기한_도래_회차 {
 
         @Test
-        @DisplayName("600,000원을 내면 연체금 → 이자 → 2회 원금을 다 채우고 3회 원금은 4,400원만 채우며, 원금잔액에서 504,400원을 빼고 상세 2행을 남긴다")
+        @DisplayName("600,000원을 내면 연체금 → 이자 → 2회 원금을 다 채우고 3회 원금은 4,400원만 채우며, 원금잔액에서 504,400원을 빼고 충당 상세 6행을 남긴다")
         void 순서대로_채우고_마지막_대상은_남은_만큼만_채운다() {
-            // given
-            givenChargesBelongToSecond();
-
             // when
             installmentAllocationService.allocate(REPAYMENT_ID, LOAN_ACCOUNT_ID, new BigDecimal("600000"), overdueTargets());
 
@@ -78,34 +74,36 @@ class InstallmentAllocationServiceTest {
             then(repaymentScheduleMapper).should().updateAddPaidPrincipal(SECOND, new BigDecimal("500000"));
             then(repaymentScheduleMapper).should().updateAddPaidPrincipal(THIRD, new BigDecimal("4400"));
             then(loanAccountMapper).should().updateSubtractLoanPrincipalBalance(LOAN_ACCOUNT_ID, new BigDecimal("504400"));
-            assertThat(detailsOf(insertedDetails(2))).containsExactly(
-                    "2:500000:50000:600",
-                    "3:4400:45000:0");
+            assertThat(allocationsOf(insertedAllocations(6))).containsExactly(
+                    "INSTALLMENT_DELINQUENCY_CHARGE:101:300",
+                    "INSTALLMENT_DELINQUENCY_CHARGE:102:300",
+                    "INSTALLMENT_INTEREST:2:50000",
+                    "INSTALLMENT_INTEREST:3:45000",
+                    "INSTALLMENT_PRINCIPAL:2:500000",
+                    "INSTALLMENT_PRINCIPAL:3:4400");
         }
 
         @Test
-        @DisplayName("1,100,600원을 내면 모든 대상을 다 채우고 원금잔액에서 1,005,000원을 뺀다")
+        @DisplayName("1,100,600원을 내면 모든 대상을 다 채우고 원금잔액에서 1,005,000원을 빼며 충당 상세 6행을 남긴다")
         void 딱_맞게_내면_모두_채운다() {
-            // given
-            givenChargesBelongToSecond();
-
             // when
             installmentAllocationService.allocate(REPAYMENT_ID, LOAN_ACCOUNT_ID, new BigDecimal("1100600"), overdueTargets());
 
             // then
             then(repaymentScheduleMapper).should().updateAddPaidPrincipal(THIRD, new BigDecimal("505000"));
             then(loanAccountMapper).should().updateSubtractLoanPrincipalBalance(LOAN_ACCOUNT_ID, new BigDecimal("1005000"));
-            assertThat(detailsOf(insertedDetails(2))).containsExactly(
-                    "2:500000:50000:600",
-                    "3:505000:45000:0");
+            assertThat(allocationsOf(insertedAllocations(6))).containsExactly(
+                    "INSTALLMENT_DELINQUENCY_CHARGE:101:300",
+                    "INSTALLMENT_DELINQUENCY_CHARGE:102:300",
+                    "INSTALLMENT_INTEREST:2:50000",
+                    "INSTALLMENT_INTEREST:3:45000",
+                    "INSTALLMENT_PRINCIPAL:2:500000",
+                    "INSTALLMENT_PRINCIPAL:3:505000");
         }
 
         @Test
-        @DisplayName("450원을 내면 10/11 연체금 300원과 10/12 연체금 150원만 채우고, 이자·원금과 원금잔액은 건드리지 않으며 상세 1행을 남긴다")
+        @DisplayName("450원을 내면 10/11 연체금 300원과 10/12 연체금 150원만 채우고, 이자·원금과 원금잔액은 건드리지 않으며 충당 상세 2행을 남긴다")
         void 연체금_중간에서_멈춘다() {
-            // given
-            givenChargesBelongToSecond();
-
             // when
             installmentAllocationService.allocate(REPAYMENT_ID, LOAN_ACCOUNT_ID, new BigDecimal("450"), overdueTargets());
 
@@ -114,19 +112,9 @@ class InstallmentAllocationServiceTest {
             then(installmentDelinquencyChargeMapper).should().updateAddPaidDelinquencyCharge(OCT_12_CHARGE, new BigDecimal("150"));
             then(repaymentScheduleMapper).shouldHaveNoInteractions();
             then(loanAccountMapper).shouldHaveNoInteractions();
-            assertThat(detailsOf(insertedDetails(1))).containsExactly("2:0:0:450");
-        }
-
-        @Test
-        @DisplayName("연체금 행의 회차를 찾지 못하면 회차 연체금을 찾을 수 없다고 거절한다")
-        void 연체금의_회차가_없으면_거절한다() {
-            // given
-            given(installmentDelinquencyChargeMapper.findRepaymentScheduleId(OCT_11_CHARGE)).willReturn(Optional.empty());
-
-            // when & then
-            assertThatThrownBy(() -> installmentAllocationService.allocate(
-                    REPAYMENT_ID, LOAN_ACCOUNT_ID, new BigDecimal("600000"), overdueTargets()))
-                    .isInstanceOf(InstallmentDelinquencyChargeNotFoundException.class);
+            assertThat(allocationsOf(insertedAllocations(2))).containsExactly(
+                    "INSTALLMENT_DELINQUENCY_CHARGE:101:300",
+                    "INSTALLMENT_DELINQUENCY_CHARGE:102:150");
         }
     }
 
@@ -135,7 +123,7 @@ class InstallmentAllocationServiceTest {
     class 납부_기한_도래_회차만 {
 
         @Test
-        @DisplayName("45,000원을 내면 이자만 채우고 원금잔액은 건드리지 않으며 상세 1행(3회 이자 45,000원)을 남긴다")
+        @DisplayName("45,000원을 내면 이자만 채우고 원금잔액은 건드리지 않으며 충당 상세 1행(3회 이자 45,000원)을 남긴다")
         void 이자에서_딱_멈춘다() {
             // given
             List<RepaymentTargetResponse> targets = List.of(
@@ -149,7 +137,7 @@ class InstallmentAllocationServiceTest {
             then(repaymentScheduleMapper).should().updateAddPaidInterest(THIRD, new BigDecimal("45000"));
             then(repaymentScheduleMapper).should(times(0)).updateAddPaidPrincipal(anyLong(), any());
             then(loanAccountMapper).shouldHaveNoInteractions();
-            assertThat(detailsOf(insertedDetails(1))).containsExactly("3:0:45000:0");
+            assertThat(allocationsOf(insertedAllocations(1))).containsExactly("INSTALLMENT_INTEREST:3:45000");
         }
     }
 
@@ -172,7 +160,7 @@ class InstallmentAllocationServiceTest {
             then(repaymentScheduleMapper).should().updateAddPaidInterest(THIRD, new BigDecimal("45000"));
             then(repaymentScheduleMapper).should(times(0)).updateAddPaidPrincipal(anyLong(), any());
             then(loanAccountMapper).shouldHaveNoInteractions();
-            assertThat(detailsOf(insertedDetails(1))).containsExactly("3:0:45000:0");
+            assertThat(allocationsOf(insertedAllocations(1))).containsExactly("INSTALLMENT_INTEREST:3:45000");
         }
     }
 
@@ -195,7 +183,7 @@ class InstallmentAllocationServiceTest {
             then(installmentDelinquencyChargeMapper).shouldHaveNoInteractions();
             then(repaymentScheduleMapper).shouldHaveNoInteractions();
             then(loanAccountMapper).shouldHaveNoInteractions();
-            then(installmentRepaymentMapper).shouldHaveNoInteractions();
+            then(repaymentAllocationMapper).shouldHaveNoInteractions();
         }
 
         @Test
@@ -210,11 +198,6 @@ class InstallmentAllocationServiceTest {
                     .isInstanceOfSatisfying(RepaymentAmountLeftOverException.class,
                             e -> assertThat(e.getLeftOverAmount()).isEqualByComparingTo("1"));
         }
-    }
-
-    private void givenChargesBelongToSecond() {
-        given(installmentDelinquencyChargeMapper.findRepaymentScheduleId(OCT_11_CHARGE)).willReturn(Optional.of(SECOND));
-        given(installmentDelinquencyChargeMapper.findRepaymentScheduleId(OCT_12_CHARGE)).willReturn(Optional.of(SECOND));
     }
 
     // 17이 만드는 충당 순서: 연체금(날짜순) → 이자(예정일순) → 원금(예정일순)
@@ -232,20 +215,19 @@ class InstallmentAllocationServiceTest {
         return new RepaymentTargetResponse(order, type, targetId, new BigDecimal(amount));
     }
 
-    private List<InstallmentRepaymentResponse> insertedDetails(int count) {
-        ArgumentCaptor<InstallmentRepaymentResponse> captor = ArgumentCaptor.forClass(InstallmentRepaymentResponse.class);
-        then(installmentRepaymentMapper).should(times(count)).insertInstallmentRepayment(captor.capture());
+    private List<RepaymentAllocationResponse> insertedAllocations(int count) {
+        ArgumentCaptor<RepaymentAllocationResponse> captor = ArgumentCaptor.forClass(RepaymentAllocationResponse.class);
+        then(repaymentAllocationMapper).should(times(count)).insertAllocation(captor.capture());
         return captor.getAllValues();
     }
 
-    // "회차:원금:이자:연체금". 모두 상환 77의 상세인지도 함께 확인한다.
-    private List<String> detailsOf(List<InstallmentRepaymentResponse> details) {
-        assertThat(details).allSatisfy(detail -> assertThat(detail.getRepaymentId()).isEqualTo(REPAYMENT_ID));
-        return details.stream()
-                .map(detail -> detail.getRepaymentScheduleId() + ":"
-                        + detail.getPaidPrincipal().toPlainString() + ":"
-                        + detail.getPaidInterest().toPlainString() + ":"
-                        + detail.getPaidDelinquencyCharge().toPlainString())
+    // "종류:대상 id:충당 금액". 모두 상환 77의 충당 상세인지도 함께 확인한다.
+    private List<String> allocationsOf(List<RepaymentAllocationResponse> allocations) {
+        assertThat(allocations).allSatisfy(allocation -> assertThat(allocation.getRepaymentId()).isEqualTo(REPAYMENT_ID));
+        return allocations.stream()
+                .map(allocation -> allocation.getRepaymentTargetTypeId() + ":"
+                        + allocation.getTargetId() + ":"
+                        + allocation.getPaidAmount().toPlainString())
                 .toList();
     }
 }
