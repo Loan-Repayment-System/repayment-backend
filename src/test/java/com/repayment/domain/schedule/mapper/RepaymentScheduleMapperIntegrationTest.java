@@ -4,6 +4,7 @@ import com.repayment.TestcontainersConfig;
 import com.repayment.domain.schedule.dto.response.AppliedRateResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentAmountResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleConfirmTargetResponse;
+import com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse;
 import com.repayment.global.code.InterestType;
 import com.repayment.global.code.RepaymentMethod;
 import com.repayment.global.code.RepaymentScheduleStatus;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -38,17 +40,21 @@ class RepaymentScheduleMapperIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    private long memberId;
+    private long accountId;
+    private long productId;
     private long loanAccountId;
     private long firstScheduleId;
+    private long secondScheduleId;
     private long thirdScheduleId;
 
     // 원리금균등·고정금리(기준 4.5% + 가산 1.5%), 원금 12,000,000원, 12회. 1·2회차 확정, 3회차 미확정
     @BeforeEach
     void setUp() {
-        long memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('schedule-test', 'pw', '테스트')");
-        long accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
+        memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('schedule-test', 'pw', '테스트')");
+        accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
                 + "VALUES (?, '110-000-000001', 0, 1)", memberId);
-        long productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
+        productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
                 + "VALUES (1, 2, '테스트 상품', 1.5)");
         long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
                 + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
@@ -57,7 +63,7 @@ class RepaymentScheduleMapperIntegrationTest {
                 + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
                 + "VALUES (?, ?, '900-000-000001', 1, 12000000, 10, 2)", contractId, accountId);
         firstScheduleId = insertConfirmedSchedule(1, "2026-10-10", "972797", "60000");
-        insertConfirmedSchedule(2, "2026-11-10", "977661", "55136");
+        secondScheduleId = insertConfirmedSchedule(2, "2026-11-10", "977661", "55136");
         thirdScheduleId = insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, "
                 + "repayment_schedule_status_id, scheduled_date) VALUES (?, 3, 1, '2026-12-10')", loanAccountId);
     }
@@ -121,6 +127,53 @@ class RepaymentScheduleMapperIntegrationTest {
 
             // then
             assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("상환 뒤 판정할 회차를 조회할 때")
+    class 판정할_회차_조회 {
+
+        @Test
+        @DisplayName("1회 연체·2회 납부 기한 도래·3회 예정·4회 납입 완료·5회 기한이익상실로 종료와 다른 대출의 연체 회차가 있으면 이 대출의 1·2회만 회차 번호 순서로 가져온다")
+        void 납부_기한_도래와_연체_회차만_가져온다() {
+            // given
+            jdbcTemplate.update("UPDATE repayment_schedule SET repayment_schedule_status_id = 4, paid_interest = 20000 "
+                    + "WHERE repayment_schedule_id = ?", firstScheduleId);
+            insertConfirmedSchedule(4, "2027-01-10", "982547", "50250");
+            jdbcTemplate.update("UPDATE repayment_schedule SET repayment_schedule_status_id = 3 "
+                    + "WHERE loan_account_id = ? AND installment_no = 4", loanAccountId);
+            insertConfirmedSchedule(5, "2027-02-10", "987457", "45340");
+            jdbcTemplate.update("UPDATE repayment_schedule SET repayment_schedule_status_id = 5 "
+                    + "WHERE loan_account_id = ? AND installment_no = 5", loanAccountId);
+            long otherContractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, "
+                    + "maturity_date, contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
+                    + "VALUES (?, ?, '2026-09-10', '2027-09-10', 12000000, 1.5, 4.5, 12)", productId, memberId);
+            long otherLoanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, "
+                    + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, "
+                    + "last_confirmed_installment_no) VALUES (?, ?, '900-000-000002', 2, 12000000, 10, 1)",
+                    otherContractId, accountId);
+            insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, repayment_schedule_status_id, "
+                    + "scheduled_date, scheduled_principal, scheduled_interest, applied_base_rate, "
+                    + "applied_additional_rate, confirmed_at) VALUES (?, 1, 4, '2026-10-10', 972797, 60000, 4.5, 1.5, NOW())",
+                    otherLoanAccountId);
+
+            // when
+            List<RepaymentScheduleJudgmentTargetResponse> result =
+                    repaymentScheduleMapper.findJudgmentTargets(loanAccountId);
+
+            // then
+            assertThat(result).extracting(RepaymentScheduleJudgmentTargetResponse::getRepaymentScheduleId)
+                    .containsExactly(firstScheduleId, secondScheduleId);
+            RepaymentScheduleJudgmentTargetResponse first = result.get(0);
+            assertThat(first.getLoanAccountId()).isEqualTo(loanAccountId);
+            assertThat(first.getRepaymentScheduleStatusId()).isEqualTo(RepaymentScheduleStatus.OVERDUE);
+            assertThat(first.getScheduledDate()).isEqualTo(LocalDate.of(2026, 10, 10));
+            assertThat(first.getConfirmedAt()).isNotNull();
+            assertThat(first.getScheduledPrincipal()).isEqualByComparingTo("972797");
+            assertThat(first.getScheduledInterest()).isEqualByComparingTo("60000");
+            assertThat(first.getPaidPrincipal()).isEqualByComparingTo("0");
+            assertThat(first.getPaidInterest()).isEqualByComparingTo("20000");
         }
     }
 

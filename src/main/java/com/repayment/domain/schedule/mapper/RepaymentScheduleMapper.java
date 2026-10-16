@@ -3,17 +3,21 @@ package com.repayment.domain.schedule.mapper;
 import com.repayment.domain.schedule.dto.response.AppliedRateResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentAmountResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleConfirmTargetResponse;
+import com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse;
 import com.repayment.global.code.RepaymentScheduleStatus;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 @Mapper
 public interface RepaymentScheduleMapper {
 
     Optional<RepaymentScheduleConfirmTargetResponse> findConfirmTarget(Long repaymentScheduleId);
+
+    List<RepaymentScheduleJudgmentTargetResponse> findJudgmentTargets(Long loanAccountId);
 
     int updateConfirmation(@Param("repaymentScheduleId") Long repaymentScheduleId,
                            @Param("amount") RepaymentAmountResponse amount,
