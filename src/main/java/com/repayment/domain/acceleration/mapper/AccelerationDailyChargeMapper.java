@@ -24,4 +24,6 @@ public interface AccelerationDailyChargeMapper {
 
     int updateAddPaidInterest(@Param("accelerationDailyChargeId") Long accelerationDailyChargeId,
                               @Param("amount") BigDecimal amount);
+
+    int updateResolveFullyPaid(Long loanAccountId);
 }

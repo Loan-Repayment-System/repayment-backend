@@ -179,6 +179,63 @@ class InstallmentDelinquencyChargeMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("다 낸 연체금을 해소로 바꿀 때")
+    class 해소 {
+
+        @Test
+        @DisplayName("연체금 1,200원을 모두 낸 진행중 행은 해소가 된다")
+        void 다_낸_행은_해소가_된다() {
+            // given
+            long chargeId = insertChargeRow(insertSchedule(loanAccountId, 1, OVERDUE), "1200", "1200");
+
+            // when
+            installmentDelinquencyChargeMapper.updateResolveFullyPaid(loanAccountId);
+
+            // then
+            assertThat(findStatus(chargeId)).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("연체금 1,200원 중 1,199원을 낸 진행중 행은 진행중 그대로다")
+        void 덜_낸_행은_진행중_그대로다() {
+            // given
+            long chargeId = insertChargeRow(insertSchedule(loanAccountId, 1, OVERDUE), "1200", "1199");
+
+            // when
+            installmentDelinquencyChargeMapper.updateResolveFullyPaid(loanAccountId);
+
+            // then
+            assertThat(findStatus(chargeId)).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("다른 대출의 연체금을 모두 낸 진행중 행은 진행중 그대로다")
+        void 다른_대출의_행은_그대로다() {
+            // given
+            long otherLoanAccountId = insertLoanAccount("900-000-000004");
+            long chargeId = insertChargeRow(insertSchedule(otherLoanAccountId, 1, OVERDUE), "1200", "1200");
+
+            // when
+            installmentDelinquencyChargeMapper.updateResolveFullyPaid(loanAccountId);
+
+            // then
+            assertThat(findStatus(chargeId)).isEqualTo(1);
+        }
+
+        private long insertChargeRow(long repaymentScheduleId, String charge, String paid) {
+            return insert("INSERT INTO installment_delinquency_charge (repayment_schedule_id, charge_date, "
+                            + "loan_judgment_status_id, delinquency_target_amount, delinquency_rate, delinquency_charge, "
+                            + "paid_delinquency_charge, delinquency_status_id) VALUES (?, '2026-10-11', 21, 830000, 9, ?, ?, 1)",
+                    repaymentScheduleId, new BigDecimal(charge), new BigDecimal(paid));
+        }
+
+        private int findStatus(long chargeId) {
+            return jdbcTemplate.queryForObject("SELECT delinquency_status_id FROM installment_delinquency_charge "
+                    + "WHERE installment_delinquency_charge_id = ?", Integer.class, chargeId);
+        }
+    }
+
     // loan_account는 계약당 1개라 대출마다 계약을 만든다
     private long insertLoanAccount(String accountNo) {
         long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "

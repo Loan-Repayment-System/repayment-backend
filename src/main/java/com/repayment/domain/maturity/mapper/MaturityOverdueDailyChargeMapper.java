@@ -21,4 +21,6 @@ public interface MaturityOverdueDailyChargeMapper {
 
     int updateAddPaidDelinquencyCharge(@Param("maturityOverdueDailyChargeId") Long maturityOverdueDailyChargeId,
                                        @Param("amount") BigDecimal amount);
+
+    int updateResolveFullyPaid(Long loanAccountId);
 }
