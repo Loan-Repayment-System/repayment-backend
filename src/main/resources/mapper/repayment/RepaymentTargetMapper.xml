@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.repayment.mapper.RepaymentTargetMapper">
+
+    <!--
+        남은 금액은 계산한 값이라 DTO 필드 이름으로 별칭을 붙인다.
+        하루 기록은 오래된 날짜부터, 회차는 예정일이 이른 순서로 돌려준다.
+    -->
+
+    <!-- 기한이익상실·만기 경과로 닫힌 회차의 연체금은 옮겨졌으므로 뺀다. -->
+    <select id="findUnpaidInstallmentDelinquencyCharges"
+            resultType="com.repayment.domain.repayment.dto.response.UnpaidDailyChargeResponse">
+        <bind name="closedByAcceleration" value="@com.repayment.global.code.RepaymentScheduleStatus@CLOSED_BY_ACCELERATION"/>
+        <bind name="closedByMaturityOverdue" value="@com.repayment.global.code.RepaymentScheduleStatus@CLOSED_BY_MATURITY_OVERDUE"/>
+        SELECT idc.installment_delinquency_charge_id AS charge_id,
+               idc.delinquency_charge - idc.paid_delinquency_charge AS unpaid_delinquency_charge,
+               0 AS unpaid_interest
+        FROM installment_delinquency_charge idc
+        JOIN repayment_schedule rs ON rs.repayment_schedule_id = idc.repayment_schedule_id
+        WHERE rs.loan_account_id = #{loanAccountId}
+          AND rs.repayment_schedule_status_id NOT IN (#{closedByAcceleration}, #{closedByMaturityOverdue})
+          AND idc.delinquency_charge > idc.paid_delinquency_charge
+        ORDER BY idc.charge_date, idc.installment_delinquency_charge_id
+    </select>
+
+    <select id="findUnpaidInstallments"
+            resultType="com.repayment.domain.repayment.dto.response.UnpaidInstallmentResponse">
+        <bind name="overdue" value="@com.repayment.global.code.RepaymentScheduleStatus@OVERDUE"/>
+        <bind name="due" value="@com.repayment.global.code.RepaymentScheduleStatus@DUE"/>
+        SELECT repayment_schedule_id,
+               scheduled_interest - paid_interest AS unpaid_interest,
+               scheduled_principal - paid_principal AS unpaid_principal
+        FROM repayment_schedule
+        WHERE loan_account_id = #{loanAccountId}
+          AND repayment_schedule_status_id IN (#{overdue}, #{due})
+          AND scheduled_interest + scheduled_principal > paid_interest + paid_principal
+        ORDER BY scheduled_date, installment_no
+    </select>
+
+    <select id="findUnpaidAcceleration"
+            resultType="com.repayment.domain.repayment.dto.response.UnpaidAccelerationResponse">
+        SELECT a.loan_acceleration_id,
+               a.carried_delinquency_charge - a.paid_carried_delinquency_charge AS unpaid_carried_delinquency_charge,
+               a.carried_interest - a.paid_carried_interest AS unpaid_carried_interest,
+               a.carried_overdue_principal - a.paid_carried_overdue_principal AS unpaid_carried_overdue_principal,
+               la.loan_principal_balance
+        FROM loan_acceleration a
+        JOIN loan_account la ON la.loan_account_id = a.loan_account_id
+        WHERE a.loan_account_id = #{loanAccountId}
+    </select>
+
+    <select id="findUnpaidAccelerationDailyCharges"
+            resultType="com.repayment.domain.repayment.dto.response.UnpaidDailyChargeResponse">
+        SELECT acceleration_daily_charge_id AS charge_id,
+               delinquency_charge - paid_delinquency_charge AS unpaid_delinquency_charge,
+               interest_amount - paid_interest AS unpaid_interest
+        FROM acceleration_daily_charge
+        WHERE loan_acceleration_id = #{loanAccelerationId}
+          AND delinquency_charge + interest_amount > paid_delinquency_charge + paid_interest
+        ORDER BY charge_date, acceleration_daily_charge_id
+    </select>
+
+    <select id="findUnpaidMaturityOverdue"
+            resultType="com.repayment.domain.repayment.dto.response.UnpaidMaturityOverdueResponse">
+        SELECT m.loan_maturity_overdue_id,
+               m.carried_delinquency_charge - m.paid_carried_delinquency_charge AS unpaid_carried_delinquency_charge,
+               m.carried_interest - m.paid_carried_interest AS unpaid_carried_interest,
+               la.loan_principal_balance
+        FROM loan_maturity_overdue m
+        JOIN loan_account la ON la.loan_account_id = m.loan_account_id
+        WHERE m.loan_account_id = #{loanAccountId}
+    </select>
+
+    <select id="findUnpaidMaturityOverdueDailyCharges"
+            resultType="com.repayment.domain.repayment.dto.response.UnpaidDailyChargeResponse">
+        SELECT maturity_overdue_daily_charge_id AS charge_id,
+               delinquency_charge - paid_delinquency_charge AS unpaid_delinquency_charge,
+               interest_amount - paid_interest AS unpaid_interest
+        FROM maturity_overdue_daily_charge
+        WHERE loan_maturity_overdue_id = #{loanMaturityOverdueId}
+          AND delinquency_charge > paid_delinquency_charge
+        ORDER BY charge_date, maturity_overdue_daily_charge_id
+    </select>
+</mapper>
