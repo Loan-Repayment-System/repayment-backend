@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 고객 상환 요청 1건을 처리한다. 상환 가능 확인 → 당행 이체 → 납부 기록 → 충당 → 스케줄 판정·연체금 해소 판정
+ * 상환 요청 1건을 처리한다. 채널(고객 상환·자동 상환)은 부르는 쪽이 정해 넘긴다. 상환 가능 확인 → 당행 이체 → 납부 기록 → 충당 → 스케줄 판정·연체금 해소 판정
  * → 상태 판정 → 상태 변화 처리를 한 트랜잭션으로 하고, 어느 단계에서 실패해도 이체까지 모두 취소된다.
  */
 @Service
@@ -51,7 +51,8 @@ public class RepaymentService {
     private final Clock clock;
 
     @Transactional
-    public Long repay(Long loanAccountId, Long memberId, BigDecimal amount, String requestKey) {
+    public Long repay(Long loanAccountId, Long memberId, BigDecimal amount, String requestKey,
+                      RepaymentChannel channel) {
         // 납부 시각과 판정 기준일이 자정을 사이에 두고 어긋나지 않게 한 번만 읽는다.
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDate businessDate = now.toLocalDate();
@@ -68,7 +69,7 @@ public class RepaymentService {
 
         RepaymentResponse repayment = RepaymentResponse.builder()
                 .loanAccountId(loanAccountId)
-                .repaymentChannelId(RepaymentChannel.CUSTOMER)
+                .repaymentChannelId(channel)
                 .requestKey(requestKey)
                 .paidAmount(amount)
                 .paidAt(now)

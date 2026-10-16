@@ -136,7 +136,7 @@ class RepaymentServiceTest {
         @DisplayName("확인 → 이체 → 기록 → 회차 충당 → 회차 2개 판정 → 해소 → 상태 판정 → 상태 변화 처리 순서로 부른다")
         void 일곱_단계를_순서대로_부른다() {
             // when
-            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY);
+            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER);
 
             // then
             InOrder inOrder = inOrder(repaymentEligibilityService, internalTransferService, repaymentMapper,
@@ -156,10 +156,10 @@ class RepaymentServiceTest {
         }
 
         @Test
-        @DisplayName("상환 계좌에서 수납 계좌로 30,000원을 이체하고, 같은 UUID 거래번호와 처리 시각 2026-10-16 14:30으로 고객 상환 기록을 남긴다")
+        @DisplayName("상환 계좌에서 수납 계좌로 30,000원을 이체하고, 같은 UUID 거래번호와 처리 시각 2026-10-16 14:30, 넘긴 채널(고객 상환)로 기록을 남긴다")
         void 이체와_기록이_같은_거래번호와_시각을_쓴다() {
             // when
-            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY);
+            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER);
 
             // then
             ArgumentCaptor<String> transactionNo = ArgumentCaptor.forClass(String.class);
@@ -182,7 +182,7 @@ class RepaymentServiceTest {
         @DisplayName("기록이 만든 상환 id 500을 돌려준다")
         void 상환_id를_돌려준다() {
             // when
-            Long result = repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY);
+            Long result = repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER);
 
             // then
             assertThat(result).isEqualTo(REPAYMENT_ID);
@@ -208,7 +208,7 @@ class RepaymentServiceTest {
             givenEligible(judgment);
 
             // when
-            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY);
+            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER);
 
             // then
             then(installmentAllocationService).should().allocate(REPAYMENT_ID, LOAN_ACCOUNT_ID, AMOUNT, TARGETS);
@@ -225,7 +225,7 @@ class RepaymentServiceTest {
             givenEligible(judgment);
 
             // when
-            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY);
+            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER);
 
             // then
             then(accelerationAllocationService).should().allocate(REPAYMENT_ID, LOAN_ACCOUNT_ID, AMOUNT, TARGETS);
@@ -240,7 +240,7 @@ class RepaymentServiceTest {
             givenEligible(LoanJudgmentStatus.MATURITY_OVERDUE);
 
             // when
-            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY);
+            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER);
 
             // then
             then(maturityOverdueAllocationService).should().allocate(REPAYMENT_ID, LOAN_ACCOUNT_ID, AMOUNT, TARGETS);
@@ -263,7 +263,7 @@ class RepaymentServiceTest {
             given(repaymentScheduleMapper.findJudgmentTargets(LOAN_ACCOUNT_ID)).willReturn(List.of());
 
             // when
-            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY);
+            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER);
 
             // then
             then(repaymentScheduleJudgmentService).shouldHaveNoInteractions();
@@ -285,7 +285,7 @@ class RepaymentServiceTest {
             given(repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT)).willThrow(rejected);
 
             // when
-            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY));
+            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER));
 
             // then
             assertThat(thrown).isSameAs(rejected);
@@ -302,7 +302,7 @@ class RepaymentServiceTest {
             given(accountMapper.findAccountIdByAccountNo(COLLECTION_ACCOUNT_NO)).willReturn(Optional.empty());
 
             // when
-            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY));
+            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER));
 
             // then
             assertThat(thrown).isInstanceOf(CollectionAccountNotFoundException.class);
@@ -323,7 +323,7 @@ class RepaymentServiceTest {
                     .transfer(any(), any(), any(), anyString());
 
             // when
-            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY));
+            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER));
 
             // then
             assertThat(thrown).isSameAs(insufficient);
