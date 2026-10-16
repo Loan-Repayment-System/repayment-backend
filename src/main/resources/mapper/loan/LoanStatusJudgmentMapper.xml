@@ -34,6 +34,15 @@
         WHERE la.loan_account_id = #{loanAccountId}
     </select>
 
+    <!-- 그 대출의 loan_status_judgment_id가 가장 큰 행. 행이 없으면 비어 있다. -->
+    <select id="findLatestJudgmentStatus" resultType="com.repayment.global.code.LoanJudgmentStatus">
+        SELECT loan_judgment_status_id
+        FROM loan_status_judgment
+        WHERE loan_account_id = #{loanAccountId}
+        ORDER BY loan_status_judgment_id DESC
+        LIMIT 1
+    </select>
+
     <!-- 가장 최근 판정 2행. 첫 행이 오늘 판정, 둘째 행이 직전 판정이다. -->
     <select id="findRecentJudgments"
             resultType="com.repayment.domain.loan.dto.response.LoanStatusJudgmentResponse">
