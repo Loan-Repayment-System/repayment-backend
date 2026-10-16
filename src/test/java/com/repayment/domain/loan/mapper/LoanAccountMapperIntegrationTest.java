@@ -1,6 +1,7 @@
 package com.repayment.domain.loan.mapper;
 
 import com.repayment.TestcontainersConfig;
+import com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse;
 import com.repayment.global.code.LoanStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,13 +44,14 @@ class LoanAccountMapperIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    private long memberId;
     private long contractId;
     private long accountId;
 
     // 만기일시상환·고정금리, 약정 10,000,000원, 12회
     @BeforeEach
     void setUp() {
-        long memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('debt-test', 'pw', '테스트')");
+        memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('debt-test', 'pw', '테스트')");
         accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
                 + "VALUES (?, '110-000-000001', 0, 1)", memberId);
         long productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
@@ -167,6 +169,42 @@ class LoanAccountMapperIntegrationTest {
 
             // when
             Optional<BigDecimal> result = loanAccountMapper.findRemainingDebtTotal(missingLoanAccountId);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("상환할 대출을 잠그고 조회할 때")
+    class 상환할_대출_잠금_조회 {
+
+        @Test
+        @DisplayName("대출이 있으면 그 대출 id와 계약의 회원 id, 상환 계좌 id를 가져온다")
+        void 계약의_회원과_상환_계좌를_가져온다() {
+            // given
+            long loanAccountId = insertLoanAccount("10000000");
+
+            // when
+            Optional<RepaymentLoanAccountResponse> result = loanAccountMapper.findRepaymentLoanAccountForUpdate(loanAccountId);
+
+            // then
+            assertThat(result).hasValueSatisfying(loanAccount -> {
+                assertThat(loanAccount.getLoanAccountId()).isEqualTo(loanAccountId);
+                assertThat(loanAccount.getMemberId()).isEqualTo(memberId);
+                assertThat(loanAccount.getRepaymentAccountId()).isEqualTo(accountId);
+            });
+        }
+
+        @Test
+        @DisplayName("없는 대출 ID면 빈 값이다")
+        void 없는_대출은_빈_값이다() {
+            // given
+            long missingLoanAccountId = insertLoanAccount("0") + 1000;
+
+            // when
+            Optional<RepaymentLoanAccountResponse> result =
+                    loanAccountMapper.findRepaymentLoanAccountForUpdate(missingLoanAccountId);
 
             // then
             assertThat(result).isEmpty();

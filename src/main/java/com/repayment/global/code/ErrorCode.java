@@ -25,6 +25,8 @@ public enum ErrorCode {
     // 대출
     LOAN_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "대출을 찾을 수 없습니다."),
     LOAN_STATUS_JUDGMENT_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "기준일의 대출 상태 판정을 찾지 못했습니다."),
+    LOAN_ACCOUNT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "본인의 대출이 아닙니다."),
+    LOAN_ALREADY_PAID_OFF(HttpStatus.UNPROCESSABLE_ENTITY, "이미 완제된 대출입니다."),
 
     // 대출 스케줄
     REPAYMENT_SCHEDULE_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "상환 회차를 찾지 못했습니다."),
@@ -46,6 +48,11 @@ public enum ErrorCode {
     // 이체
     ACCOUNT_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "계좌를 찾지 못했습니다."),
     INSUFFICIENT_BALANCE(HttpStatus.UNPROCESSABLE_ENTITY, "출금 계좌의 잔액이 부족합니다."),
+
+    // 상환
+    INVALID_REPAYMENT_AMOUNT(HttpStatus.BAD_REQUEST, "상환 금액은 1원 이상 원 단위로 입력해 주세요."),
+    NOTHING_TO_REPAY(HttpStatus.UNPROCESSABLE_ENTITY, "지금 갚을 금액이 없습니다."),
+    REPAYMENT_EXCEEDS_REPAYABLE_AMOUNT(HttpStatus.UNPROCESSABLE_ENTITY, "상환 금액이 갚을 금액보다 많습니다."),
     ;
 
     private final HttpStatus status;

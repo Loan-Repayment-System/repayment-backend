@@ -15,6 +15,8 @@ public interface LoanStatusJudgmentMapper {
 
     Optional<LoanStatusJudgmentTargetResponse> findJudgmentTarget(Long loanAccountId);
 
+    Optional<LoanJudgmentStatus> findLatestJudgmentStatus(Long loanAccountId);
+
     List<LoanStatusJudgmentResponse> findRecentJudgments(Long loanAccountId);
 
     int insertJudgment(@Param("loanAccountId") Long loanAccountId,

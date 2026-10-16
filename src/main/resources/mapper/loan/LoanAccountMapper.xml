@@ -3,6 +3,21 @@
 <mapper namespace="com.repayment.domain.loan.mapper.LoanAccountMapper">
 
     <!--
+        같은 대출의 다른 상환은 이 트랜잭션이 끝날 때까지 기다린다.
+        회원은 loan_contract에 있어 JOIN한다. JOIN한 loan_contract 행도 함께 잠기지만 대출당 1행이다.
+    -->
+    <select id="findRepaymentLoanAccountForUpdate"
+            resultType="com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse">
+        SELECT la.loan_account_id,
+               lc.member_id,
+               la.repayment_account_id
+        FROM loan_account la
+        JOIN loan_contract lc ON lc.loan_contract_id = la.loan_contract_id
+        WHERE la.loan_account_id = #{loanAccountId}
+        FOR UPDATE
+    </select>
+
+    <!--
         세 출처(회차, 기한이익상실, 만기 경과)를 모두 더한다.
         회차는 확정됐고 닫히지 않은 DUE·PAID·OVERDUE만 센다. 전환하면 '…로 종료'로 닫혀 빠지고,
         전환 전에는 대출 단위 테이블에 행이 없다.

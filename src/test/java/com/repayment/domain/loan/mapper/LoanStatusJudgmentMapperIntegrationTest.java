@@ -133,6 +133,37 @@ class LoanStatusJudgmentMapperIntegrationTest {
     }
 
     @Nested
+    @DisplayName("가장 최근 판정 상태를 조회할 때")
+    class 가장_최근_판정_상태_조회 {
+
+        @Test
+        @DisplayName("판정 행이 1/10 0 → 1/11 21 → 1/11 0 순으로 쌓였고 다른 대출 행이 있으면 마지막에 쌓인 0 정상이다")
+        void 그_대출의_id가_가장_큰_행의_판정이다() {
+            // given
+            insertJudgment("2027-01-10", 0);
+            insertJudgment("2027-01-11", 21);
+            insertJudgment("2027-01-11", 0);
+            insertJudgmentOf(insertLoanAccount("900-000-000003"), "2027-01-11", 2);
+
+            // when
+            Optional<LoanJudgmentStatus> result = loanStatusJudgmentMapper.findLatestJudgmentStatus(loanAccountId);
+
+            // then
+            assertThat(result).contains(LoanJudgmentStatus.NORMAL);
+        }
+
+        @Test
+        @DisplayName("판정 행이 없으면 빈 값이다")
+        void 판정_행이_없으면_빈_값이다() {
+            // when
+            Optional<LoanJudgmentStatus> result = loanStatusJudgmentMapper.findLatestJudgmentStatus(loanAccountId);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("최근 판정을 조회할 때")
     class 최근_판정_조회 {
 
