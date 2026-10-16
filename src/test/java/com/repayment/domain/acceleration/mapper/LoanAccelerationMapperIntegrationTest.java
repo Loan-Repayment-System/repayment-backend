@@ -169,6 +169,47 @@ class LoanAccelerationMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("충당한 금액을 더할 때")
+    class 충당한_금액_더하기 {
+
+        @Test
+        @DisplayName("낸 옮긴 연체금 100원·옮긴 이자 8,000원·옮긴 밀린 원금 2,000원인 기한이익상실에 200원·30,000원·100,000원을 더하면 300원·38,000원·102,000원이 되고 다른 대출의 기한이익상실은 그대로다")
+        void 그_기한이익상실에만_더한다() {
+            // given
+            long accelerationId = insertPaidAccelerationRow(loanAccountId);
+            long otherAccelerationId = insertPaidAccelerationRow(insertLoanAccount("900-000-000006"));
+
+            // when
+            loanAccelerationMapper.updateAddPaidCarriedDelinquencyCharge(accelerationId, new BigDecimal("200"));
+            loanAccelerationMapper.updateAddPaidCarriedInterest(accelerationId, new BigDecimal("30000"));
+            loanAccelerationMapper.updateAddPaidCarriedOverduePrincipal(accelerationId, new BigDecimal("100000"));
+
+            // then
+            Map<String, Object> row = findPaid(accelerationId);
+            assertThat((BigDecimal) row.get("paid_carried_delinquency_charge")).isEqualByComparingTo("300");
+            assertThat((BigDecimal) row.get("paid_carried_interest")).isEqualByComparingTo("38000");
+            assertThat((BigDecimal) row.get("paid_carried_overdue_principal")).isEqualByComparingTo("102000");
+            Map<String, Object> other = findPaid(otherAccelerationId);
+            assertThat((BigDecimal) other.get("paid_carried_delinquency_charge")).isEqualByComparingTo("100");
+            assertThat((BigDecimal) other.get("paid_carried_interest")).isEqualByComparingTo("8000");
+            assertThat((BigDecimal) other.get("paid_carried_overdue_principal")).isEqualByComparingTo("2000");
+        }
+
+        private long insertPaidAccelerationRow(long loanAccountId) {
+            return insert("INSERT INTO loan_acceleration (loan_account_id, converted_date, applied_base_rate, "
+                    + "applied_additional_rate, carried_interest, paid_carried_interest, carried_overdue_principal, "
+                    + "paid_carried_overdue_principal, carried_delinquency_charge, paid_carried_delinquency_charge) "
+                    + "VALUES (?, '2026-10-15', 4.5, 1.5, 78000, 8000, 1502000, 2000, 500, 100)", loanAccountId);
+        }
+
+        private Map<String, Object> findPaid(long loanAccelerationId) {
+            return jdbcTemplate.queryForMap("SELECT paid_carried_delinquency_charge, paid_carried_interest, "
+                    + "paid_carried_overdue_principal FROM loan_acceleration WHERE loan_acceleration_id = ?",
+                    loanAccelerationId);
+        }
+    }
+
     // loan_account는 계약당 1개라 대출마다 계약을 만든다
     private long insertLoanAccount(String accountNo) {
         long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "

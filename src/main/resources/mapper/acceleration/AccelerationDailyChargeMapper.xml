@@ -32,4 +32,16 @@
                 #{delinquencyTargetAmount}, #{delinquencyRate}, #{delinquencyCharge},
                 #{interestAmount}, #{delinquencyStatusId})
     </insert>
+
+    <update id="updateAddPaidDelinquencyCharge">
+        UPDATE acceleration_daily_charge
+        SET paid_delinquency_charge = paid_delinquency_charge + #{amount}
+        WHERE acceleration_daily_charge_id = #{accelerationDailyChargeId}
+    </update>
+
+    <update id="updateAddPaidInterest">
+        UPDATE acceleration_daily_charge
+        SET paid_interest = paid_interest + #{amount}
+        WHERE acceleration_daily_charge_id = #{accelerationDailyChargeId}
+    </update>
 </mapper>

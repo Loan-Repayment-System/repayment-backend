@@ -172,6 +172,41 @@ class AccelerationDailyChargeMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("충당한 금액을 더할 때")
+    class 충당한_금액_더하기 {
+
+        @Test
+        @DisplayName("낸 연체금 100원인 10/15 행에 연체금 200원, 약정이자 1,000원을 더하면 300원·1,000원이 되고 10/16 행은 0원·0원 그대로다")
+        void 그_하루_기록에만_더한다() {
+            // given
+            long accelerationId = insertAcceleration();
+            insertDailyCharge(accelerationId, "2026-10-15");
+            long oct15ChargeId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+            insertDailyCharge(accelerationId, "2026-10-16");
+            long oct16ChargeId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+            jdbcTemplate.update("UPDATE acceleration_daily_charge SET paid_delinquency_charge = 100 "
+                    + "WHERE acceleration_daily_charge_id = ?", oct15ChargeId);
+
+            // when
+            accelerationDailyChargeMapper.updateAddPaidDelinquencyCharge(oct15ChargeId, new BigDecimal("200"));
+            accelerationDailyChargeMapper.updateAddPaidInterest(oct15ChargeId, new BigDecimal("1000"));
+
+            // then
+            Map<String, Object> oct15 = findPaid(oct15ChargeId);
+            assertThat((BigDecimal) oct15.get("paid_delinquency_charge")).isEqualByComparingTo("300");
+            assertThat((BigDecimal) oct15.get("paid_interest")).isEqualByComparingTo("1000");
+            Map<String, Object> oct16 = findPaid(oct16ChargeId);
+            assertThat((BigDecimal) oct16.get("paid_delinquency_charge")).isEqualByComparingTo("0");
+            assertThat((BigDecimal) oct16.get("paid_interest")).isEqualByComparingTo("0");
+        }
+
+        private Map<String, Object> findPaid(long accelerationDailyChargeId) {
+            return jdbcTemplate.queryForMap("SELECT paid_delinquency_charge, paid_interest "
+                    + "FROM acceleration_daily_charge WHERE acceleration_daily_charge_id = ?", accelerationDailyChargeId);
+        }
+    }
+
     private long insertAcceleration() {
         return insert("INSERT INTO loan_acceleration (loan_account_id, converted_date, applied_base_rate, "
                 + "applied_additional_rate, carried_interest, paid_carried_interest, carried_overdue_principal, "
