@@ -74,8 +74,8 @@ class RepayableAmountServiceTest {
 
             // then
             assertThat(targetsOf(result)).containsExactly(
-                    "INSTALLMENT_INTEREST:13:700",
-                    "INSTALLMENT_PRINCIPAL:13:500000");
+                    "1:INSTALLMENT_INTEREST:13:700",
+                    "2:INSTALLMENT_PRINCIPAL:13:500000");
             assertThat(result.getTotalAmount()).isEqualByComparingTo("500700");
         }
 
@@ -95,12 +95,12 @@ class RepayableAmountServiceTest {
 
             // then
             assertThat(targetsOf(result)).containsExactly(
-                    "INSTALLMENT_DELINQUENCY_CHARGE:81:300",
-                    "INSTALLMENT_DELINQUENCY_CHARGE:85:300",
-                    "INSTALLMENT_INTEREST:12:50000",
-                    "INSTALLMENT_PRINCIPAL:12:500000",
-                    "INSTALLMENT_INTEREST:13:700",
-                    "INSTALLMENT_PRINCIPAL:13:500000");
+                    "1:INSTALLMENT_DELINQUENCY_CHARGE:81:300",
+                    "2:INSTALLMENT_DELINQUENCY_CHARGE:85:300",
+                    "3:INSTALLMENT_INTEREST:12:50000",
+                    "4:INSTALLMENT_PRINCIPAL:12:500000",
+                    "5:INSTALLMENT_INTEREST:13:700",
+                    "6:INSTALLMENT_PRINCIPAL:13:500000");
             assertThat(result.getTotalAmount()).isEqualByComparingTo("1051300");
         }
 
@@ -117,7 +117,7 @@ class RepayableAmountServiceTest {
                     repayableAmountService.calculate(LOAN_ACCOUNT_ID, LoanJudgmentStatus.BULLET_INTEREST_OVERDUE);
 
             // then
-            assertThat(targetsOf(result)).containsExactly("INSTALLMENT_INTEREST:12:30000");
+            assertThat(targetsOf(result)).containsExactly("1:INSTALLMENT_INTEREST:12:30000");
             assertThat(result.getTotalAmount()).isEqualByComparingTo("30000");
         }
     }
@@ -142,12 +142,12 @@ class RepayableAmountServiceTest {
 
             // then
             assertThat(targetsOf(result)).containsExactly(
-                    "ACCELERATION_CARRIED_DELINQUENCY_CHARGE:7:1000",
-                    "ACCELERATION_DAILY_DELINQUENCY_CHARGE:31:100",
-                    "ACCELERATION_DAILY_DELINQUENCY_CHARGE:32:110",
-                    "ACCELERATION_CARRIED_INTEREST:7:20000",
-                    "ACCELERATION_CARRIED_OVERDUE_PRINCIPAL:7:300000",
-                    "ACCELERATION_REMAINING_PRINCIPAL:10:2700000");
+                    "1:ACCELERATION_CARRIED_DELINQUENCY_CHARGE:7:1000",
+                    "2:ACCELERATION_DAILY_DELINQUENCY_CHARGE:31:100",
+                    "3:ACCELERATION_DAILY_DELINQUENCY_CHARGE:32:110",
+                    "4:ACCELERATION_CARRIED_INTEREST:7:20000",
+                    "5:ACCELERATION_CARRIED_OVERDUE_PRINCIPAL:7:300000",
+                    "6:ACCELERATION_REMAINING_PRINCIPAL:10:2700000");
             assertThat(result.getTotalAmount()).isEqualByComparingTo("3021210");
         }
 
@@ -166,14 +166,14 @@ class RepayableAmountServiceTest {
 
             // then
             assertThat(targetsOf(result)).containsExactly(
-                    "ACCELERATION_CARRIED_DELINQUENCY_CHARGE:7:1000",
-                    "ACCELERATION_DAILY_DELINQUENCY_CHARGE:31:50",
-                    "ACCELERATION_DAILY_DELINQUENCY_CHARGE:32:50",
-                    "ACCELERATION_CARRIED_INTEREST:7:20000",
-                    "ACCELERATION_DAILY_INTEREST:31:400",
-                    "ACCELERATION_DAILY_INTEREST:32:400",
-                    "ACCELERATION_CARRIED_OVERDUE_PRINCIPAL:7:300000",
-                    "ACCELERATION_REMAINING_PRINCIPAL:10:2700000");
+                    "1:ACCELERATION_CARRIED_DELINQUENCY_CHARGE:7:1000",
+                    "2:ACCELERATION_DAILY_DELINQUENCY_CHARGE:31:50",
+                    "3:ACCELERATION_DAILY_DELINQUENCY_CHARGE:32:50",
+                    "4:ACCELERATION_CARRIED_INTEREST:7:20000",
+                    "5:ACCELERATION_DAILY_INTEREST:31:400",
+                    "6:ACCELERATION_DAILY_INTEREST:32:400",
+                    "7:ACCELERATION_CARRIED_OVERDUE_PRINCIPAL:7:300000",
+                    "8:ACCELERATION_REMAINING_PRINCIPAL:10:2700000");
         }
 
         @Test
@@ -191,8 +191,8 @@ class RepayableAmountServiceTest {
 
             // then
             assertThat(targetsOf(result)).containsExactly(
-                    "ACCELERATION_DAILY_DELINQUENCY_CHARGE:31:100",
-                    "ACCELERATION_REMAINING_PRINCIPAL:10:3000000");
+                    "1:ACCELERATION_DAILY_DELINQUENCY_CHARGE:31:100",
+                    "2:ACCELERATION_REMAINING_PRINCIPAL:10:3000000");
         }
 
         @Test
@@ -228,11 +228,11 @@ class RepayableAmountServiceTest {
 
             // then
             assertThat(targetsOf(result)).containsExactly(
-                    "MATURITY_OVERDUE_CARRIED_DELINQUENCY_CHARGE:8:500",
-                    "MATURITY_OVERDUE_DAILY_DELINQUENCY_CHARGE:41:200",
-                    "MATURITY_OVERDUE_DAILY_DELINQUENCY_CHARGE:42:200",
-                    "MATURITY_OVERDUE_CARRIED_INTEREST:8:78000",
-                    "MATURITY_OVERDUE_PRINCIPAL:10:1002000");
+                    "1:MATURITY_OVERDUE_CARRIED_DELINQUENCY_CHARGE:8:500",
+                    "2:MATURITY_OVERDUE_DAILY_DELINQUENCY_CHARGE:41:200",
+                    "3:MATURITY_OVERDUE_DAILY_DELINQUENCY_CHARGE:42:200",
+                    "4:MATURITY_OVERDUE_CARRIED_INTEREST:8:78000",
+                    "5:MATURITY_OVERDUE_PRINCIPAL:10:1002000");
             assertThat(result.getTotalAmount()).isEqualByComparingTo("1080900");
         }
 
@@ -249,10 +249,10 @@ class RepayableAmountServiceTest {
         }
     }
 
-    // "종류:대상 id:금액"으로 바꿔 순서까지 비교한다
+    // "충당 순서:종류:대상 id:금액"으로 바꿔 비교한다
     private List<String> targetsOf(RepayableAmountResponse result) {
         return result.getTargets().stream()
-                .map(target -> target.getType() + ":" + target.getTargetId() + ":"
+                .map(target -> target.getRepaymentOrder() + ":" + target.getType() + ":" + target.getTargetId() + ":"
                         + target.getAmount().stripTrailingZeros().toPlainString())
                 .toList();
     }

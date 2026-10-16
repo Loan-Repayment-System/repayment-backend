@@ -21,7 +21,8 @@ import java.util.List;
 import static com.repayment.domain.repayment.service.RepaymentTargetType.*;
 
 /**
- * 가장 최근 판정에 따라 지금 갚을 수 있는 대상을 충당 순서대로 늘어놓고 그 합을 계산한다.
+ * 가장 최근 판정에 따라 지금 갚을 수 있는 대상을 충당 순서로 정렬하고 그 합을 계산한다.
+ * 대상마다 충당 순서(repaymentOrder)를 1부터 매긴다.
  * 남은 금액이 0원인 대상은 넣지 않는다. 아무것도 바꾸지 않는다.
  */
 @Service
@@ -100,7 +101,7 @@ public class RepayableAmountService {
 
     private void add(List<RepaymentTargetResponse> targets, RepaymentTargetType type, Long targetId, BigDecimal amount) {
         if (amount.compareTo(BigDecimal.ZERO) > 0) {
-            targets.add(new RepaymentTargetResponse(type, targetId, amount));
+            targets.add(new RepaymentTargetResponse(targets.size() + 1, type, targetId, amount));
         }
     }
 }
