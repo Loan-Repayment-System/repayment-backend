@@ -49,13 +49,16 @@ public class RepayableAmountService {
         return new RepayableAmountResponse(totalAmount, targets);
     }
 
-    // 연체금(오래된 날짜부터) → '연체'·'납부 기한 도래' 회차를 예정일 순으로, 회차 안에서는 이자 → 원금
+    // 연체금(오래된 날짜부터) → 이자 → 원금. 이자·원금은 각각 '연체'·'납부 기한 도래' 회차를 예정일 순으로
     private void addInstallmentTargets(List<RepaymentTargetResponse> targets, Long loanAccountId) {
         for (UnpaidDailyChargeResponse charge : repaymentTargetMapper.findUnpaidInstallmentDelinquencyCharges(loanAccountId)) {
             add(targets, INSTALLMENT_DELINQUENCY_CHARGE, charge.getChargeId(), charge.getUnpaidDelinquencyCharge());
         }
-        for (UnpaidInstallmentResponse installment : repaymentTargetMapper.findUnpaidInstallments(loanAccountId)) {
+        List<UnpaidInstallmentResponse> installments = repaymentTargetMapper.findUnpaidInstallments(loanAccountId);
+        for (UnpaidInstallmentResponse installment : installments) {
             add(targets, INSTALLMENT_INTEREST, installment.getRepaymentScheduleId(), installment.getUnpaidInterest());
+        }
+        for (UnpaidInstallmentResponse installment : installments) {
             add(targets, INSTALLMENT_PRINCIPAL, installment.getRepaymentScheduleId(), installment.getUnpaidPrincipal());
         }
     }

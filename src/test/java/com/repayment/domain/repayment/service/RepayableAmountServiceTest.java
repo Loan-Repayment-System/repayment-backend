@@ -79,10 +79,10 @@ class RepayableAmountServiceTest {
             assertThat(result.getTotalAmount()).isEqualByComparingTo("500700");
         }
 
-        // 상환 4단계 충당 순서: 연체금 → '연체' 회차 → '납부 기한 도래' 회차
+        // 은행여신거래기본약관(가계용) 일부변제 충당: 비용 → 이자 → 원금
         @Test
-        @DisplayName("21 연체에서 연체금 300원·300원, 2회(연체) 50,000원·500,000원, 3회(도래) 700원·500,000원이면 연체금 2개 → 2회 → 3회 순이고 합은 1,051,300원이다")
-        void 연체금_다음_회차_순서다() {
+        @DisplayName("21 연체에서 연체금 300원·300원, 2회(연체) 50,000원·500,000원, 3회(도래) 700원·500,000원이면 연체금 2개 → 2회·3회 이자 → 2회·3회 원금 순이고 합은 1,051,300원이다")
+        void 연체금_다음_이자_다음_원금이다() {
             // given
             given(repaymentTargetMapper.findUnpaidInstallmentDelinquencyCharges(LOAN_ACCOUNT_ID))
                     .willReturn(List.of(dailyCharge(81L, "300", "0"), dailyCharge(85L, "300", "0")));
@@ -98,8 +98,8 @@ class RepayableAmountServiceTest {
                     "1:INSTALLMENT_DELINQUENCY_CHARGE:81:300",
                     "2:INSTALLMENT_DELINQUENCY_CHARGE:85:300",
                     "3:INSTALLMENT_INTEREST:12:50000",
-                    "4:INSTALLMENT_PRINCIPAL:12:500000",
-                    "5:INSTALLMENT_INTEREST:13:700",
+                    "4:INSTALLMENT_INTEREST:13:700",
+                    "5:INSTALLMENT_PRINCIPAL:12:500000",
                     "6:INSTALLMENT_PRINCIPAL:13:500000");
             assertThat(result.getTotalAmount()).isEqualByComparingTo("1051300");
         }
