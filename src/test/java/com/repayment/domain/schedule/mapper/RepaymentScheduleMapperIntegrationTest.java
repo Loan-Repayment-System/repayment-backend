@@ -241,6 +241,36 @@ class RepaymentScheduleMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("충당한 이자·원금을 더할 때")
+    class 충당한_이자_원금_더하기 {
+
+        @Test
+        @DisplayName("이자 60,000원 중 20,000원을 낸 1회차에 이자 30,000원, 원금 100,000원을 더하면 낸 이자 50,000원, 낸 원금 100,000원이 되고 3회차는 그대로다")
+        void 그_회차에만_더한다() {
+            // given
+            jdbcTemplate.update("UPDATE repayment_schedule SET paid_interest = 20000 WHERE repayment_schedule_id = ?",
+                    firstScheduleId);
+
+            // when
+            repaymentScheduleMapper.updateAddPaidInterest(firstScheduleId, new BigDecimal("30000"));
+            repaymentScheduleMapper.updateAddPaidPrincipal(firstScheduleId, new BigDecimal("100000"));
+
+            // then
+            Map<String, Object> first = findPaid(firstScheduleId);
+            assertThat((BigDecimal) first.get("paid_interest")).isEqualByComparingTo("50000");
+            assertThat((BigDecimal) first.get("paid_principal")).isEqualByComparingTo("100000");
+            Map<String, Object> third = findPaid(thirdScheduleId);
+            assertThat((BigDecimal) third.get("paid_interest")).isEqualByComparingTo("0");
+            assertThat((BigDecimal) third.get("paid_principal")).isEqualByComparingTo("0");
+        }
+
+        private Map<String, Object> findPaid(long repaymentScheduleId) {
+            return jdbcTemplate.queryForMap("SELECT paid_interest, paid_principal FROM repayment_schedule "
+                    + "WHERE repayment_schedule_id = ?", repaymentScheduleId);
+        }
+    }
+
     private long insertConfirmedSchedule(int installmentNo, String scheduledDate, String principal, String interest) {
         return insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, repayment_schedule_status_id, "
                         + "scheduled_date, scheduled_principal, scheduled_interest, applied_base_rate, "

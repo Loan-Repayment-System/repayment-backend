@@ -5,8 +5,10 @@ import com.repayment.domain.delinquency.dto.response.InstallmentDelinquencyCharg
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Mapper
 public interface InstallmentDelinquencyChargeMapper {
@@ -15,4 +17,9 @@ public interface InstallmentDelinquencyChargeMapper {
                                                                         @Param("chargeDate") LocalDate chargeDate);
 
     int insertCharge(InstallmentDelinquencyChargeResponse charge);
+
+    Optional<Long> findRepaymentScheduleId(Long installmentDelinquencyChargeId);
+
+    int updateAddPaidDelinquencyCharge(@Param("installmentDelinquencyChargeId") Long installmentDelinquencyChargeId,
+                                       @Param("amount") BigDecimal amount);
 }

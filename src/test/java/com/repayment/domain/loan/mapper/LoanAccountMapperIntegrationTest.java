@@ -212,6 +212,27 @@ class LoanAccountMapperIntegrationTest {
     }
 
     @Nested
+    @DisplayName("충당한 원금만큼 원금잔액을 줄일 때")
+    class 원금잔액_줄이기 {
+
+        @Test
+        @DisplayName("원금잔액 5,000,000원에서 504,400원을 빼면 4,495,600원이다")
+        void 원금잔액에서_뺀다() {
+            // given
+            long loanAccountId = insertLoanAccount("5000000");
+
+            // when
+            loanAccountMapper.updateSubtractLoanPrincipalBalance(loanAccountId, new BigDecimal("504400"));
+
+            // then
+            BigDecimal balance = jdbcTemplate.queryForObject(
+                    "SELECT loan_principal_balance FROM loan_account WHERE loan_account_id = ?", BigDecimal.class,
+                    loanAccountId);
+            assertThat(balance).isEqualByComparingTo("4495600");
+        }
+    }
+
+    @Nested
     @DisplayName("대출 상태를 바꿀 때")
     class 대출_상태_갱신 {
 

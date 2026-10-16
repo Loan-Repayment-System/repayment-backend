@@ -37,6 +37,7 @@ public enum ErrorCode {
 
     // 연체금
     INSTALLMENT_DELINQUENCY_NOT_APPLICABLE(HttpStatus.INTERNAL_SERVER_ERROR, "회차 연체금을 쌓을 수 없는 판정입니다."),
+    INSTALLMENT_DELINQUENCY_CHARGE_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "회차 연체금을 찾지 못했습니다."),
 
     // 기한이익상실
     LOAN_ACCELERATION_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "기한이익상실 전환 기록을 찾지 못했습니다."),
@@ -53,6 +54,8 @@ public enum ErrorCode {
     INVALID_REPAYMENT_AMOUNT(HttpStatus.BAD_REQUEST, "상환 금액은 1원 이상 원 단위로 입력해 주세요."),
     NOTHING_TO_REPAY(HttpStatus.UNPROCESSABLE_ENTITY, "지금 갚을 금액이 없습니다."),
     REPAYMENT_EXCEEDS_REPAYABLE_AMOUNT(HttpStatus.UNPROCESSABLE_ENTITY, "상환 금액이 갚을 금액보다 많습니다."),
+    REPAYMENT_TARGET_TYPE_MISMATCH(HttpStatus.INTERNAL_SERVER_ERROR, "충당할 수 없는 종류의 대상이 있습니다."),
+    REPAYMENT_AMOUNT_LEFT_OVER(HttpStatus.INTERNAL_SERVER_ERROR, "충당하고 남은 금액이 있습니다."),
     ;
 
     private final HttpStatus status;

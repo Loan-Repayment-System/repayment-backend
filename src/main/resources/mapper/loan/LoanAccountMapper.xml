@@ -67,6 +67,12 @@
         WHERE la.loan_account_id = #{loanAccountId}
     </select>
 
+    <update id="updateSubtractLoanPrincipalBalance">
+        UPDATE loan_account
+        SET loan_principal_balance = loan_principal_balance - #{amount}
+        WHERE loan_account_id = #{loanAccountId}
+    </update>
+
     <!-- 값이 같으면 MySQL이 행을 고치지 않아 updated_at도 그대로다. -->
     <update id="updateLoanStatus">
         UPDATE loan_account

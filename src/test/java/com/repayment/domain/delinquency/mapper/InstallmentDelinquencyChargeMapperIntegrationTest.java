@@ -20,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -144,6 +145,84 @@ class InstallmentDelinquencyChargeMapperIntegrationTest {
             assertThat((BigDecimal) row.get("delinquency_charge")).isEqualByComparingTo("204");
             assertThat((BigDecimal) row.get("paid_delinquency_charge")).isEqualByComparingTo("0");
             assertThat(row.get("delinquency_status_id")).isEqualTo(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("충당한 연체금을 더할 때")
+    class 충당한_연체금_더하기 {
+
+        @Test
+        @DisplayName("연체금 300원 중 0원 낸 행에 100원을 더하면 낸 연체금은 100원이고 상태는 진행중 그대로다")
+        void 덜_채우면_진행중이다() {
+            // given
+            long chargeId = insertChargeRow(insertSchedule(loanAccountId, 1, OVERDUE), "300", "0");
+
+            // when
+            installmentDelinquencyChargeMapper.updateAddPaidDelinquencyCharge(chargeId, new BigDecimal("100"));
+
+            // then
+            Map<String, Object> row = findChargeRow(chargeId);
+            assertThat((BigDecimal) row.get("paid_delinquency_charge")).isEqualByComparingTo("100");
+            assertThat(row.get("delinquency_status_id")).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("연체금 300원 중 100원 낸 행에 200원을 더하면 낸 연체금은 300원이고 상태는 해소다")
+        void 다_채우면_해소다() {
+            // given
+            long chargeId = insertChargeRow(insertSchedule(loanAccountId, 1, OVERDUE), "300", "100");
+
+            // when
+            installmentDelinquencyChargeMapper.updateAddPaidDelinquencyCharge(chargeId, new BigDecimal("200"));
+
+            // then
+            Map<String, Object> row = findChargeRow(chargeId);
+            assertThat((BigDecimal) row.get("paid_delinquency_charge")).isEqualByComparingTo("300");
+            assertThat(row.get("delinquency_status_id")).isEqualTo(2);
+        }
+
+        private long insertChargeRow(long repaymentScheduleId, String charge, String paid) {
+            return insert("INSERT INTO installment_delinquency_charge (repayment_schedule_id, charge_date, "
+                            + "loan_judgment_status_id, delinquency_target_amount, delinquency_rate, delinquency_charge, "
+                            + "paid_delinquency_charge, delinquency_status_id) VALUES (?, '2026-10-11', 21, 830000, 9, ?, ?, 1)",
+                    repaymentScheduleId, new BigDecimal(charge), new BigDecimal(paid));
+        }
+
+        private Map<String, Object> findChargeRow(long chargeId) {
+            return jdbcTemplate.queryForMap("SELECT paid_delinquency_charge, delinquency_status_id "
+                    + "FROM installment_delinquency_charge WHERE installment_delinquency_charge_id = ?", chargeId);
+        }
+    }
+
+    @Nested
+    @DisplayName("연체금의 회차를 조회할 때")
+    class 연체금의_회차_조회 {
+
+        @Test
+        @DisplayName("2회 연체금 행을 조회하면 2회의 회차 ID가 나온다")
+        void 연체금_행의_회차_ID가_나온다() {
+            // given
+            insertSchedule(loanAccountId, 1, PAID);
+            long second = insertSchedule(loanAccountId, 2, OVERDUE);
+            insertChargeRow(second, "2026-10-11");
+            long chargeId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+
+            // when
+            Optional<Long> result = installmentDelinquencyChargeMapper.findRepaymentScheduleId(chargeId);
+
+            // then
+            assertThat(result).contains(second);
+        }
+
+        @Test
+        @DisplayName("없는 연체금 ID면 빈 값이다")
+        void 없는_연체금은_빈_값이다() {
+            // when
+            Optional<Long> result = installmentDelinquencyChargeMapper.findRepaymentScheduleId(-1L);
+
+            // then
+            assertThat(result).isEmpty();
         }
     }
 

@@ -15,6 +15,9 @@ public interface LoanAccountMapper {
 
     Optional<BigDecimal> findRemainingDebtTotal(Long loanAccountId);
 
+    int updateSubtractLoanPrincipalBalance(@Param("loanAccountId") Long loanAccountId,
+                                           @Param("amount") BigDecimal amount);
+
     int updateLoanStatus(@Param("loanAccountId") Long loanAccountId,
                          @Param("loanStatus") LoanStatus loanStatus);
 }
