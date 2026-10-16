@@ -158,11 +158,11 @@ src/main/resources/mapper/{도메인}/{대상}Mapper.xml
 - `created_at`, `updated_at`은 DB가 채우므로 INSERT, UPDATE 문에 적지 않는다.
 - 대출 상태 이력은 판정 테이블 `loan_status_judgment`에 남는다. 판정할 때마다 1행을 쌓고 고치지 않는다.
 - 잔액이나 상태를 바꿀 때는 그 근거 기록(판정, 납부, 연체금, 거래)의 INSERT와 한 트랜잭션으로 묶는다.
-- 기록 테이블은 지우지 않고, 아래 컬럼 말고는 고치지 않는다. 충당 상세(`*_repayment`)의 `paid_*`는 그 상환 1건의 충당 금액이라 누적이 아니다.
+- 기록 테이블은 지우지 않고, 아래 컬럼 말고는 고치지 않는다. 충당 상세(`repayment_allocation`)의 `paid_amount`는 그 상환 1건의 충당 금액이라 누적이 아니다.
 
   | 테이블 | 바꿔도 되는 컬럼 |
   |---|---|
-  | `loan_status_judgment`, `account_transaction`, `base_rate_history`, `repayment`, `installment_repayment`, `acceleration_repayment`, `maturity_overdue_repayment` | 없음 |
+  | `loan_status_judgment`, `account_transaction`, `base_rate_history`, `repayment`, `repayment_allocation` | 없음 |
   | `installment_delinquency_charge`, `acceleration_daily_charge`, `maturity_overdue_daily_charge` | `paid_*`(누적), `delinquency_status_id` |
   | `loan_acceleration`, `loan_maturity_overdue` | `paid_*`(누적) |
   | `processing_failure` | `resolved_at`, `resolution_note` |

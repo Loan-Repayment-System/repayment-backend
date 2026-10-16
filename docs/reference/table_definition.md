@@ -7,7 +7,7 @@
 
 ## 코드성 테이블
 
-11개 모두 구조가 같다. id는 enum과 1:1이므로 AUTO_INCREMENT를 쓰지 않는다.
+12개 모두 구조가 같다. id는 enum과 1:1이므로 AUTO_INCREMENT를 쓰지 않는다.
 
 | No. | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 비고 |
 |---|---|---|---|---|---|
@@ -27,6 +27,7 @@
 | repayment_channel | 상환 채널 | 1 고객 상환, 2 자동 상환 |
 | daily_closing_status | 일마감 상태 | 1 진행중, 2 완료, 3 실패 |
 | failure_type | 실패 종류 | 1 기준금리 조회 오류, 2 대출 스케줄 판정 실패, 3 대출 상태 판정 실패, 4 상태 변화 처리 실패, 5 배치 중단 |
+| repayment_target_type | 충당 대상 종류 | 1 회차 연체금, 2 회차 이자, 3 회차 원금, 11 기한이익상실 옮긴 연체금, 12 기한이익상실 하루 연체금, 13 기한이익상실 옮긴 이자, 14 기한이익상실 하루 약정이자, 15 기한이익상실 옮긴 밀린 원금, 16 기한이익상실 나머지 원금, 21 만기 경과 옮긴 연체금, 22 만기 경과 하루 연체금, 23 만기 경과 옮긴 이자, 24 만기 경과 원금잔액 |
 
 ---
 
@@ -229,12 +230,32 @@
 | 6 | 낸 일시 | paid_at | DATETIME | | N | | |
 | 7 | 이체 거래번호 | transaction_no | VARCHAR(40) | | N | | account_transaction과 연결(FK 아님) |
 
-### 충당 상세 (installment_repayment / acceleration_repayment / maturity_overdue_repayment)
+### 충당 상세 (repayment_allocation)
 
-납부 한 건의 상세는 대출 상태에 따라 셋 중 하나에 남는다.
+상환 1건이 대상 하나에 충당한 금액을 1행으로 남긴다. 고치거나 지우지 않는다.
 
 | No. | 컬럼 한글명 | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 기본값 | 비고 |
 |---|---|---|---|---|---|---|---|
+| 1 | 충당 상세ID | repayment_allocation_id | BIGINT | PK | N | AUTO_INCREMENT | |
+| 2 | 상환ID | repayment_id | BIGINT | FK | N | | |
+| 3 | 대상 종류 | repayment_target_type_id | INT | FK | N | | 십의 자리: 0 회차, 1 기한이익상실, 2 만기 경과 |
+| 4 | 대상ID | target_id | BIGINT | | N | | 종류마다 가리키는 테이블이 달라 FK 없음 |
+| 5 | 충당 금액 | paid_amount | DECIMAL(23,4) | | N | | 이 상환의 금액(누적 아님) |
+
+- UQ (repayment_id, repayment_target_type_id, target_id)
+
+| 대상 종류 | 대상ID가 가리키는 곳 |
+|---|---|
+| 1 회차 연체금 | `installment_delinquency_charge` |
+| 2·3 회차 이자·원금 | `repayment_schedule` |
+| 11·13·15 기한이익상실 옮긴 연체금·이자·밀린 원금 | `loan_acceleration` |
+| 12·14 기한이익상실 하루 연체금·약정이자 | `acceleration_daily_charge` |
+| 16 기한이익상실 나머지 원금 | `loan_account` |
+| 21·23 만기 경과 옮긴 연체금·이자 | `loan_maturity_overdue` |
+| 22 만기 경과 하루 연체금 | `maturity_overdue_daily_charge` |
+| 24 만기 경과 원금잔액 | `loan_account` |
+
+---|---|---|---|---|---|---|---|
 | 1 | ID | `{테이블명}_id` | BIGINT | PK | N | AUTO_INCREMENT | |
 | 2 | 상환ID | repayment_id | BIGINT | FK, UQ | N | | 회차 방식은 (repayment_id, repayment_schedule_id) UQ |
 | 3 | 대상ID | repayment_schedule_id / loan_acceleration_id / loan_maturity_overdue_id | BIGINT | FK | N | | |
