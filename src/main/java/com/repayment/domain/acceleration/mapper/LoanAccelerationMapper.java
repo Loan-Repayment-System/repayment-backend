@@ -4,6 +4,7 @@ import com.repayment.domain.acceleration.dto.response.LoanAccelerationCarryOverR
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Mapper
@@ -16,4 +17,13 @@ public interface LoanAccelerationMapper {
     int insertAcceleration(@Param("loanAccountId") Long loanAccountId,
                            @Param("convertedDate") LocalDate convertedDate,
                            @Param("carryOver") LoanAccelerationCarryOverResponse carryOver);
+
+    int updateAddPaidCarriedDelinquencyCharge(@Param("loanAccelerationId") Long loanAccelerationId,
+                                              @Param("amount") BigDecimal amount);
+
+    int updateAddPaidCarriedInterest(@Param("loanAccelerationId") Long loanAccelerationId,
+                                     @Param("amount") BigDecimal amount);
+
+    int updateAddPaidCarriedOverduePrincipal(@Param("loanAccelerationId") Long loanAccelerationId,
+                                             @Param("amount") BigDecimal amount);
 }

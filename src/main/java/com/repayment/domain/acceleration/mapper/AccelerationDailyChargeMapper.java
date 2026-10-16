@@ -5,6 +5,7 @@ import com.repayment.domain.acceleration.dto.response.AccelerationDailyChargeTar
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 
@@ -17,4 +18,10 @@ public interface AccelerationDailyChargeMapper {
                                                     @Param("chargeDate") LocalDate chargeDate);
 
     int insertCharge(AccelerationDailyChargeResponse charge);
+
+    int updateAddPaidDelinquencyCharge(@Param("accelerationDailyChargeId") Long accelerationDailyChargeId,
+                                       @Param("amount") BigDecimal amount);
+
+    int updateAddPaidInterest(@Param("accelerationDailyChargeId") Long accelerationDailyChargeId,
+                              @Param("amount") BigDecimal amount);
 }

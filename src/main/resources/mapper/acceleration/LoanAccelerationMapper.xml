@@ -46,4 +46,22 @@
         VALUES (#{loanAccountId}, #{convertedDate}, #{carryOver.appliedBaseRate}, #{carryOver.appliedAdditionalRate},
                 #{carryOver.carriedInterest}, #{carryOver.carriedOverduePrincipal}, #{carryOver.carriedDelinquencyCharge})
     </insert>
+
+    <update id="updateAddPaidCarriedDelinquencyCharge">
+        UPDATE loan_acceleration
+        SET paid_carried_delinquency_charge = paid_carried_delinquency_charge + #{amount}
+        WHERE loan_acceleration_id = #{loanAccelerationId}
+    </update>
+
+    <update id="updateAddPaidCarriedInterest">
+        UPDATE loan_acceleration
+        SET paid_carried_interest = paid_carried_interest + #{amount}
+        WHERE loan_acceleration_id = #{loanAccelerationId}
+    </update>
+
+    <update id="updateAddPaidCarriedOverduePrincipal">
+        UPDATE loan_acceleration
+        SET paid_carried_overdue_principal = paid_carried_overdue_principal + #{amount}
+        WHERE loan_acceleration_id = #{loanAccelerationId}
+    </update>
 </mapper>
