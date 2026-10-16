@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,7 +25,7 @@ import static com.repayment.domain.repayment.service.RepaymentTargetType.*;
 
 /**
  * 정상·연체 대출(0·11·21)의 납부 금액을 갚을 금액 목록의 위에서부터 충당한다.
- * 목록은 상환 가능 확인이 돌려준 것이라 충당 순서(연체금 → 이자 → 원금)로 정렬돼 있다.
+ * 목록은 상환 가능 확인이 돌려준 것이고, 받은 순서와 상관없이 충당 순서(repaymentOrder)대로 채운다.
  * 대상의 남은 금액보다 남은 납부 금액이 적으면 그 대상에서 멈춘다.
  * 충당 상세(installment_repayment)는 채운 회차마다 1행이고, 연체금은 그 회차 행에 합쳐 적는다.
  */
@@ -41,7 +42,8 @@ public class InstallmentAllocationService {
     private final InstallmentRepaymentMapper installmentRepaymentMapper;
 
     @Transactional
-    public void allocate(Long repaymentId, Long loanAccountId, BigDecimal amount, List<RepaymentTargetResponse> targets) {
+    public void allocate(Long repaymentId, Long loanAccountId, BigDecimal paidAmount,
+                         List<RepaymentTargetResponse> targets) {
         for (RepaymentTargetResponse target : targets) {
             if (!INSTALLMENT_TYPES.contains(target.getType())) {
                 throw new RepaymentTargetTypeMismatchException(loanAccountId, target.getType());
@@ -51,8 +53,11 @@ public class InstallmentAllocationService {
         // 회차 id → 이 상환이 그 회차에 채운 금액. 처음 채운 순서대로 상세 행을 넣으려고 LinkedHashMap을 쓴다.
         Map<Long, Allocated> allocatedBySchedule = new LinkedHashMap<>();
         BigDecimal principalTotal = BigDecimal.ZERO;
-        BigDecimal remaining = amount;
-        for (RepaymentTargetResponse target : targets) {
+        BigDecimal remaining = paidAmount;
+        List<RepaymentTargetResponse> orderedTargets = targets.stream()
+                .sorted(Comparator.comparingInt(RepaymentTargetResponse::getRepaymentOrder))
+                .toList();
+        for (RepaymentTargetResponse target : orderedTargets) {
             if (remaining.compareTo(BigDecimal.ZERO) == 0) {
                 break;
             }

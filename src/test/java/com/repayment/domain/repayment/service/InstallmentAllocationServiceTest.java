@@ -154,6 +154,29 @@ class InstallmentAllocationServiceTest {
     }
 
     @Nested
+    @DisplayName("목록이 충당 순서와 다른 순서로 들어올 때")
+    class 뒤섞인_목록 {
+
+        @Test
+        @DisplayName("원금(순서 2) → 이자(순서 1)로 받고 45,000원을 내면 충당 순서대로 3회 이자만 채우고 원금은 건드리지 않는다")
+        void 충당_순서대로_채운다() {
+            // given
+            List<RepaymentTargetResponse> targets = List.of(
+                    target(2, INSTALLMENT_PRINCIPAL, THIRD, "505000"),
+                    target(1, INSTALLMENT_INTEREST, THIRD, "45000"));
+
+            // when
+            installmentAllocationService.allocate(REPAYMENT_ID, LOAN_ACCOUNT_ID, new BigDecimal("45000"), targets);
+
+            // then
+            then(repaymentScheduleMapper).should().updateAddPaidInterest(THIRD, new BigDecimal("45000"));
+            then(repaymentScheduleMapper).should(times(0)).updateAddPaidPrincipal(anyLong(), any());
+            then(loanAccountMapper).shouldHaveNoInteractions();
+            assertThat(detailsOf(insertedDetails(1))).containsExactly("3:0:45000:0");
+        }
+    }
+
+    @Nested
     @DisplayName("목록이 회차 충당과 맞지 않을 때")
     class 맞지_않는_목록 {
 
