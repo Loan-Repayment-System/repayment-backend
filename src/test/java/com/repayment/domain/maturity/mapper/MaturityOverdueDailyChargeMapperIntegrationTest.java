@@ -170,6 +170,36 @@ class MaturityOverdueDailyChargeMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("충당한 금액을 더할 때")
+    class 충당한_금액_더하기 {
+
+        @Test
+        @DisplayName("낸 연체금 100원인 1/12 행에 연체금 200원을 더하면 300원이 되고 1/13 행은 0원 그대로다")
+        void 그_하루_기록에만_더한다() {
+            // given
+            long maturityOverdueId = insertMaturityOverdue(loanAccountId);
+            insertChargeRow(maturityOverdueId, "2027-01-12");
+            long jan12ChargeId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+            insertChargeRow(maturityOverdueId, "2027-01-13");
+            long jan13ChargeId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+            jdbcTemplate.update("UPDATE maturity_overdue_daily_charge SET paid_delinquency_charge = 100 "
+                    + "WHERE maturity_overdue_daily_charge_id = ?", jan12ChargeId);
+
+            // when
+            maturityOverdueDailyChargeMapper.updateAddPaidDelinquencyCharge(jan12ChargeId, new BigDecimal("200"));
+
+            // then
+            assertThat(findPaidDelinquencyCharge(jan12ChargeId)).isEqualByComparingTo("300");
+            assertThat(findPaidDelinquencyCharge(jan13ChargeId)).isEqualByComparingTo("0");
+        }
+
+        private BigDecimal findPaidDelinquencyCharge(long maturityOverdueDailyChargeId) {
+            return jdbcTemplate.queryForObject("SELECT paid_delinquency_charge FROM maturity_overdue_daily_charge "
+                    + "WHERE maturity_overdue_daily_charge_id = ?", BigDecimal.class, maturityOverdueDailyChargeId);
+        }
+    }
+
     // loan_account는 계약당 1개라 대출마다 계약을 만든다
     private long insertLoanAccount(String accountNo) {
         long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "

@@ -5,6 +5,7 @@ import com.repayment.domain.maturity.dto.response.MaturityOverdueDailyChargeTarg
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 
@@ -17,4 +18,7 @@ public interface MaturityOverdueDailyChargeMapper {
                                                        @Param("chargeDate") LocalDate chargeDate);
 
     int insertCharge(MaturityOverdueDailyChargeResponse charge);
+
+    int updateAddPaidDelinquencyCharge(@Param("maturityOverdueDailyChargeId") Long maturityOverdueDailyChargeId,
+                                       @Param("amount") BigDecimal amount);
 }

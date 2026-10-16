@@ -164,6 +164,43 @@ class LoanMaturityOverdueMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("충당한 금액을 더할 때")
+    class 충당한_금액_더하기 {
+
+        @Test
+        @DisplayName("낸 옮긴 연체금 100원·옮긴 이자 8,000원인 만기 경과에 200원·30,000원을 더하면 300원·38,000원이 되고 다른 대출의 만기 경과는 그대로다")
+        void 그_만기_경과에만_더한다() {
+            // given
+            long maturityOverdueId = insertPaidMaturityOverdueRow(loanAccountId);
+            long otherMaturityOverdueId = insertPaidMaturityOverdueRow(insertLoanAccount("900-000-000008"));
+
+            // when
+            loanMaturityOverdueMapper.updateAddPaidCarriedDelinquencyCharge(maturityOverdueId, new BigDecimal("200"));
+            loanMaturityOverdueMapper.updateAddPaidCarriedInterest(maturityOverdueId, new BigDecimal("30000"));
+
+            // then
+            Map<String, Object> row = findPaid(maturityOverdueId);
+            assertThat((BigDecimal) row.get("paid_carried_delinquency_charge")).isEqualByComparingTo("300");
+            assertThat((BigDecimal) row.get("paid_carried_interest")).isEqualByComparingTo("38000");
+            Map<String, Object> other = findPaid(otherMaturityOverdueId);
+            assertThat((BigDecimal) other.get("paid_carried_delinquency_charge")).isEqualByComparingTo("100");
+            assertThat((BigDecimal) other.get("paid_carried_interest")).isEqualByComparingTo("8000");
+        }
+
+        private long insertPaidMaturityOverdueRow(long loanAccountId) {
+            return insert("INSERT INTO loan_maturity_overdue (loan_account_id, converted_date, applied_base_rate, "
+                    + "applied_additional_rate, carried_interest, paid_carried_interest, carried_delinquency_charge, "
+                    + "paid_carried_delinquency_charge) VALUES (?, '2027-01-11', 5.0, 1.5, 78000, 8000, 500, 100)",
+                    loanAccountId);
+        }
+
+        private Map<String, Object> findPaid(long loanMaturityOverdueId) {
+            return jdbcTemplate.queryForMap("SELECT paid_carried_delinquency_charge, paid_carried_interest "
+                    + "FROM loan_maturity_overdue WHERE loan_maturity_overdue_id = ?", loanMaturityOverdueId);
+        }
+    }
+
     // loan_account는 계약당 1개라 대출마다 계약을 만든다
     private long insertLoanAccount(String accountNo) {
         long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
