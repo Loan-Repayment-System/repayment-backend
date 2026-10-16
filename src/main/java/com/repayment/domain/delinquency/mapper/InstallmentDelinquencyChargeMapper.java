@@ -19,4 +19,6 @@ public interface InstallmentDelinquencyChargeMapper {
 
     int updateAddPaidDelinquencyCharge(@Param("installmentDelinquencyChargeId") Long installmentDelinquencyChargeId,
                                        @Param("amount") BigDecimal amount);
+
+    int updateResolveFullyPaid(Long loanAccountId);
 }

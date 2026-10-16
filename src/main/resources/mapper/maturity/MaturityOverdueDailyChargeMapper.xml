@@ -35,4 +35,16 @@
         SET paid_delinquency_charge = paid_delinquency_charge + #{amount}
         WHERE maturity_overdue_daily_charge_id = #{maturityOverdueDailyChargeId}
     </update>
+
+    <!-- 그 대출의 '진행중' 행 중 연체금을 다 낸 행을 '해소'로 바꾼다. -->
+    <update id="updateResolveFullyPaid">
+        <bind name="inProgress" value="@com.repayment.global.code.DelinquencyStatus@IN_PROGRESS"/>
+        <bind name="resolved" value="@com.repayment.global.code.DelinquencyStatus@RESOLVED"/>
+        UPDATE maturity_overdue_daily_charge modc
+        JOIN loan_maturity_overdue m ON m.loan_maturity_overdue_id = modc.loan_maturity_overdue_id
+        SET modc.delinquency_status_id = #{resolved}
+        WHERE m.loan_account_id = #{loanAccountId}
+          AND modc.delinquency_status_id = #{inProgress}
+          AND modc.paid_delinquency_charge &gt;= modc.delinquency_charge
+    </update>
 </mapper>

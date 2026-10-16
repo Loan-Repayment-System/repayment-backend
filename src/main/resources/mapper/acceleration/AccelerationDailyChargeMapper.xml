@@ -44,4 +44,17 @@
         SET paid_interest = paid_interest + #{amount}
         WHERE acceleration_daily_charge_id = #{accelerationDailyChargeId}
     </update>
+
+    <!-- 그 대출의 '진행중' 행 중 연체금과 약정이자를 모두 낸 행을 '해소'로 바꾼다. -->
+    <update id="updateResolveFullyPaid">
+        <bind name="inProgress" value="@com.repayment.global.code.DelinquencyStatus@IN_PROGRESS"/>
+        <bind name="resolved" value="@com.repayment.global.code.DelinquencyStatus@RESOLVED"/>
+        UPDATE acceleration_daily_charge adc
+        JOIN loan_acceleration a ON a.loan_acceleration_id = adc.loan_acceleration_id
+        SET adc.delinquency_status_id = #{resolved}
+        WHERE a.loan_account_id = #{loanAccountId}
+          AND adc.delinquency_status_id = #{inProgress}
+          AND adc.paid_delinquency_charge &gt;= adc.delinquency_charge
+          AND adc.paid_interest &gt;= adc.interest_amount
+    </update>
 </mapper>

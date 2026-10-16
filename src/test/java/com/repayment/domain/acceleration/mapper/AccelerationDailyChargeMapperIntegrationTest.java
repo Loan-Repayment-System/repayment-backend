@@ -39,22 +39,20 @@ class AccelerationDailyChargeMapperIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    private long memberId;
+    private long accountId;
+    private long productId;
     private long loanAccountId;
 
     // 분할상환, 약정 12,000,000원, 원금잔액 10,000,000원
     @BeforeEach
     void setUp() {
-        long memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('daily-charge-test', 'pw', '테스트')");
-        long accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
+        memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('daily-charge-test', 'pw', '테스트')");
+        accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
                 + "VALUES (?, '110-000-000005', 0, 1)", memberId);
-        long productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
+        productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
                 + "VALUES (2, 2, '테스트 상품', 1.5)");
-        long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
-                + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
-                + "VALUES (?, ?, '2026-07-10', '2027-07-10', 12000000, 1.5, 4.5, 12)", productId, memberId);
-        loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
-                + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                + "VALUES (?, ?, '900-000-000007', 4, 10000000, 10, 3)", contractId, accountId);
+        loanAccountId = insertLoanAccount("900-000-000007");
     }
 
     @Nested
@@ -207,7 +205,94 @@ class AccelerationDailyChargeMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("다 낸 연체금을 해소로 바꿀 때")
+    class 해소 {
+
+        @Test
+        @DisplayName("연체금 400원과 약정이자 300원을 모두 낸 진행중 행은 해소가 된다")
+        void 연체금과_약정이자를_다_낸_행은_해소가_된다() {
+            // given
+            long chargeId = insertChargeRow(insertAcceleration(), "400", "400", "300", "300");
+
+            // when
+            accelerationDailyChargeMapper.updateResolveFullyPaid(loanAccountId);
+
+            // then
+            assertThat(findStatus(chargeId)).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("연체금 400원은 모두 냈지만 약정이자 300원 중 299원을 낸 진행중 행은 진행중 그대로다")
+        void 약정이자가_남은_행은_진행중_그대로다() {
+            // given
+            long chargeId = insertChargeRow(insertAcceleration(), "400", "400", "300", "299");
+
+            // when
+            accelerationDailyChargeMapper.updateResolveFullyPaid(loanAccountId);
+
+            // then
+            assertThat(findStatus(chargeId)).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("약정이자가 0원이고 연체금 400원을 모두 낸 진행중 행은 해소가 된다")
+        void 약정이자가_0원이면_연체금만_보고_해소한다() {
+            // given
+            long chargeId = insertChargeRow(insertAcceleration(), "400", "400", "0", "0");
+
+            // when
+            accelerationDailyChargeMapper.updateResolveFullyPaid(loanAccountId);
+
+            // then
+            assertThat(findStatus(chargeId)).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("다른 대출의 연체금과 약정이자를 모두 낸 진행중 행은 진행중 그대로다")
+        void 다른_대출의_행은_그대로다() {
+            // given
+            long otherLoanAccountId = insertLoanAccount("900-000-000008");
+            long chargeId = insertChargeRow(insertAcceleration(otherLoanAccountId), "400", "400", "300", "300");
+
+            // when
+            accelerationDailyChargeMapper.updateResolveFullyPaid(loanAccountId);
+
+            // then
+            assertThat(findStatus(chargeId)).isEqualTo(1);
+        }
+
+        private long insertChargeRow(long loanAccelerationId, String charge, String paidCharge,
+                                     String interest, String paidInterest) {
+            return insert("INSERT INTO acceleration_daily_charge (loan_acceleration_id, charge_date, "
+                            + "loan_judgment_status_id, delinquency_target_amount, delinquency_rate, delinquency_charge, "
+                            + "paid_delinquency_charge, interest_amount, paid_interest, delinquency_status_id) "
+                            + "VALUES (?, '2026-10-15', 23, 1580000, 9, ?, ?, ?, ?, 1)",
+                    loanAccelerationId, new BigDecimal(charge), new BigDecimal(paidCharge),
+                    new BigDecimal(interest), new BigDecimal(paidInterest));
+        }
+
+        private int findStatus(long chargeId) {
+            return jdbcTemplate.queryForObject("SELECT delinquency_status_id FROM acceleration_daily_charge "
+                    + "WHERE acceleration_daily_charge_id = ?", Integer.class, chargeId);
+        }
+    }
+
+    // loan_account는 계약당 1개라 대출마다 계약을 만든다
+    private long insertLoanAccount(String accountNo) {
+        long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
+                + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
+                + "VALUES (?, ?, '2026-07-10', '2027-07-10', 12000000, 1.5, 4.5, 12)", productId, memberId);
+        return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
+                + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                + "VALUES (?, ?, ?, 4, 10000000, 10, 3)", contractId, accountId, accountNo);
+    }
+
     private long insertAcceleration() {
+        return insertAcceleration(loanAccountId);
+    }
+
+    private long insertAcceleration(long loanAccountId) {
         return insert("INSERT INTO loan_acceleration (loan_account_id, converted_date, applied_base_rate, "
                 + "applied_additional_rate, carried_interest, paid_carried_interest, carried_overdue_principal, "
                 + "paid_carried_overdue_principal, carried_delinquency_charge) "
