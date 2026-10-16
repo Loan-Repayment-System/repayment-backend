@@ -11,6 +11,7 @@ import com.repayment.global.code.LoanStatus;
 import com.repayment.global.code.RepaymentChannel;
 import com.repayment.global.code.RepaymentMethod;
 import com.repayment.global.code.RepaymentScheduleStatus;
+import com.repayment.global.code.RepaymentTargetType;
 import com.repayment.global.code.TransactionType;
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
@@ -36,7 +37,8 @@ import java.sql.SQLException;
         TransactionType.class,
         RepaymentChannel.class,
         DailyClosingStatus.class,
-        FailureType.class
+        FailureType.class,
+        RepaymentTargetType.class
 })
 public class CodeEnumTypeHandler<E extends Enum<E> & CodeEnum> extends BaseTypeHandler<E> {
 
