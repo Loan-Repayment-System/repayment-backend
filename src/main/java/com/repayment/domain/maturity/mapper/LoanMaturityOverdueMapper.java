@@ -4,6 +4,7 @@ import com.repayment.domain.maturity.dto.response.LoanMaturityOverdueCarryOverRe
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Mapper
@@ -16,4 +17,10 @@ public interface LoanMaturityOverdueMapper {
     int insertMaturityOverdue(@Param("loanAccountId") Long loanAccountId,
                               @Param("convertedDate") LocalDate convertedDate,
                               @Param("carryOver") LoanMaturityOverdueCarryOverResponse carryOver);
+
+    int updateAddPaidCarriedDelinquencyCharge(@Param("loanMaturityOverdueId") Long loanMaturityOverdueId,
+                                              @Param("amount") BigDecimal amount);
+
+    int updateAddPaidCarriedInterest(@Param("loanMaturityOverdueId") Long loanMaturityOverdueId,
+                                     @Param("amount") BigDecimal amount);
 }
