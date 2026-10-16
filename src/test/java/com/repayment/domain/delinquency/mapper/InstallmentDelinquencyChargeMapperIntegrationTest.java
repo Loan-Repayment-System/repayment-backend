@@ -153,23 +153,8 @@ class InstallmentDelinquencyChargeMapperIntegrationTest {
     class 충당한_연체금_더하기 {
 
         @Test
-        @DisplayName("연체금 300원 중 0원 낸 행에 100원을 더하면 낸 연체금은 100원이고 상태는 진행중 그대로다")
-        void 덜_채우면_진행중이다() {
-            // given
-            long chargeId = insertChargeRow(insertSchedule(loanAccountId, 1, OVERDUE), "300", "0");
-
-            // when
-            installmentDelinquencyChargeMapper.updateAddPaidDelinquencyCharge(chargeId, new BigDecimal("100"));
-
-            // then
-            Map<String, Object> row = findChargeRow(chargeId);
-            assertThat((BigDecimal) row.get("paid_delinquency_charge")).isEqualByComparingTo("100");
-            assertThat(row.get("delinquency_status_id")).isEqualTo(1);
-        }
-
-        @Test
-        @DisplayName("연체금 300원 중 100원 낸 행에 200원을 더하면 낸 연체금은 300원이고 상태는 해소다")
-        void 다_채우면_해소다() {
+        @DisplayName("연체금 300원 중 100원 낸 진행중 행에 200원을 더하면 낸 연체금은 300원이고 상태는 진행중 그대로다")
+        void 금액만_더하고_상태는_바꾸지_않는다() {
             // given
             long chargeId = insertChargeRow(insertSchedule(loanAccountId, 1, OVERDUE), "300", "100");
 
@@ -179,7 +164,7 @@ class InstallmentDelinquencyChargeMapperIntegrationTest {
             // then
             Map<String, Object> row = findChargeRow(chargeId);
             assertThat((BigDecimal) row.get("paid_delinquency_charge")).isEqualByComparingTo("300");
-            assertThat(row.get("delinquency_status_id")).isEqualTo(2);
+            assertThat(row.get("delinquency_status_id")).isEqualTo(1);
         }
 
         private long insertChargeRow(long repaymentScheduleId, String charge, String paid) {
