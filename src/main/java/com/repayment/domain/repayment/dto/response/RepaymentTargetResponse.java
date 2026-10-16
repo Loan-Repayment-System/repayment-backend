@@ -1,6 +1,6 @@
 package com.repayment.domain.repayment.dto.response;
 
-import com.repayment.domain.repayment.service.RepaymentTargetType;
+import com.repayment.global.code.RepaymentTargetType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

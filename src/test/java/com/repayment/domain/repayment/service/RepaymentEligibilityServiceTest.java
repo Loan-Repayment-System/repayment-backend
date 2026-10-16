@@ -13,6 +13,7 @@ import com.repayment.domain.repayment.exception.InvalidRepaymentAmountException;
 import com.repayment.domain.repayment.exception.NothingToRepayException;
 import com.repayment.domain.repayment.exception.RepaymentExceedsRepayableAmountException;
 import com.repayment.global.code.LoanJudgmentStatus;
+import com.repayment.global.code.RepaymentTargetType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

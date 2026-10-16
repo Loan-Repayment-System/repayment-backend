@@ -10,6 +10,7 @@ import com.repayment.domain.repayment.dto.response.UnpaidInstallmentResponse;
 import com.repayment.domain.repayment.dto.response.UnpaidMaturityOverdueResponse;
 import com.repayment.domain.repayment.mapper.RepaymentTargetMapper;
 import com.repayment.global.code.LoanJudgmentStatus;
+import com.repayment.global.code.RepaymentTargetType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +19,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.repayment.domain.repayment.service.RepaymentTargetType.*;
+import static com.repayment.global.code.RepaymentTargetType.*;
 
 /**
  * 가장 최근 판정에 따라 지금 갚을 수 있는 대상을 충당 순서로 정렬하고 그 합을 계산한다.
