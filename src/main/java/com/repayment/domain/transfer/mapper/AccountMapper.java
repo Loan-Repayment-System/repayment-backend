@@ -12,5 +12,7 @@ public interface AccountMapper {
 
     Optional<TransferAccountResponse> findByIdForUpdate(Long accountId);
 
+    Optional<Long> findAccountIdByAccountNo(String accountNo);
+
     int updateBalance(@Param("accountId") Long accountId, @Param("balance") BigDecimal balance);
 }

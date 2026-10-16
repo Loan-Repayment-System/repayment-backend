@@ -55,6 +55,7 @@ public enum ErrorCode {
     REPAYMENT_EXCEEDS_REPAYABLE_AMOUNT(HttpStatus.UNPROCESSABLE_ENTITY, "상환 금액이 갚을 금액보다 많습니다."),
     REPAYMENT_TARGET_TYPE_MISMATCH(HttpStatus.INTERNAL_SERVER_ERROR, "충당할 수 없는 종류의 대상이 있습니다."),
     REPAYMENT_AMOUNT_LEFT_OVER(HttpStatus.INTERNAL_SERVER_ERROR, "충당하고 남은 금액이 있습니다."),
+    COLLECTION_ACCOUNT_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "수납 계좌를 찾지 못했습니다."),
     ;
 
     private final HttpStatus status;

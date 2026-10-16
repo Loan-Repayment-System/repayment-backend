@@ -11,6 +11,12 @@
         FOR UPDATE
     </select>
 
+    <select id="findAccountIdByAccountNo" resultType="long">
+        SELECT account_id
+        FROM account
+        WHERE account_no = #{accountNo}
+    </select>
+
     <update id="updateBalance">
         UPDATE account
         SET balance = #{balance}

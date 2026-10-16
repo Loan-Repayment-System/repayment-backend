@@ -28,6 +28,26 @@
         WHERE rs.repayment_schedule_id = #{repaymentScheduleId}
     </select>
 
+    <!-- 충당으로 금액이 바뀔 수 있는 '납부 기한 도래'·'연체' 회차만 회차 번호 순서로 가져온다. -->
+    <select id="findJudgmentTargets"
+            resultType="com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse">
+        <bind name="due" value="@com.repayment.global.code.RepaymentScheduleStatus@DUE"/>
+        <bind name="overdue" value="@com.repayment.global.code.RepaymentScheduleStatus@OVERDUE"/>
+        SELECT repayment_schedule_id,
+               loan_account_id,
+               repayment_schedule_status_id,
+               scheduled_date,
+               confirmed_at,
+               scheduled_principal,
+               scheduled_interest,
+               paid_principal,
+               paid_interest
+        FROM repayment_schedule
+        WHERE loan_account_id = #{loanAccountId}
+          AND repayment_schedule_status_id IN (#{due}, #{overdue})
+        ORDER BY installment_no
+    </select>
+
     <update id="updateConfirmation">
         UPDATE repayment_schedule
         SET scheduled_principal          = #{amount.principal},

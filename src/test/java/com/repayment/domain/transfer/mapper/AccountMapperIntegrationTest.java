@@ -70,6 +70,35 @@ class AccountMapperIntegrationTest {
     }
 
     @Nested
+    @DisplayName("계좌번호로 계좌 id를 찾을 때")
+    class 계좌번호로_찾기 {
+
+        @Test
+        @DisplayName("계좌번호 100-000-000001인 은행 계좌가 있으면 그 계좌 id를 돌려준다")
+        void 있는_계좌번호면_id를_돌려준다() {
+            // given
+            long collectionAccountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
+                    + "VALUES (NULL, '100-000-000001', 0, 1)");
+
+            // when
+            Optional<Long> result = accountMapper.findAccountIdByAccountNo("100-000-000001");
+
+            // then
+            assertThat(result).contains(collectionAccountId);
+        }
+
+        @Test
+        @DisplayName("계좌번호 100-000-000001인 계좌가 없으면 빈 값이다")
+        void 없는_계좌번호면_빈_값이다() {
+            // when
+            Optional<Long> result = accountMapper.findAccountIdByAccountNo("100-000-000001");
+
+            // then
+            assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("잔액을 바꿀 때")
     class 잔액_변경 {
 

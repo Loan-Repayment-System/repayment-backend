@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.repayment.mapper.RepaymentMapper">
+
+    <insert id="insertRepayment" useGeneratedKeys="true" keyProperty="repaymentId">
+        INSERT INTO repayment (loan_account_id, repayment_channel_id, request_key, paid_amount, paid_at, transaction_no)
+        VALUES (#{loanAccountId}, #{repaymentChannelId}, #{requestKey}, #{paidAmount}, #{paidAt}, #{transactionNo})
+    </insert>
+</mapper>
