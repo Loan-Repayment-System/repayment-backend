@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.closing.mapper.DailyClosingMapper">
+
+    <select id="findStatusByBusinessDate" resultType="com.repayment.global.code.DailyClosingStatus">
+        SELECT daily_closing_status_id
+        FROM daily_closing
+        WHERE business_date = #{businessDate}
+    </select>
+
+    <select id="existsBeforeBusinessDate" resultType="boolean">
+        SELECT EXISTS (SELECT 1
+                       FROM daily_closing
+                       WHERE business_date &lt; #{businessDate})
+    </select>
+
+    <!-- 두 실행이 동시에 INSERT하면 하나는 uq_daily_closing_business_date로 실패한다. -->
+    <insert id="insertInProgress">
+        <bind name="inProgress" value="@com.repayment.global.code.DailyClosingStatus@IN_PROGRESS"/>
+        INSERT INTO daily_closing (business_date, daily_closing_status_id, started_at)
+        VALUES (#{businessDate}, #{inProgress}, #{startedAt})
+    </insert>
+
+    <!-- 조회한 뒤 다른 실행이 먼저 바꿨으면 바뀐 행이 0이다. -->
+    <update id="updateFailedToInProgress">
+        <bind name="inProgress" value="@com.repayment.global.code.DailyClosingStatus@IN_PROGRESS"/>
+        <bind name="failed" value="@com.repayment.global.code.DailyClosingStatus@FAILED"/>
+        UPDATE daily_closing
+        SET daily_closing_status_id = #{inProgress},
+            started_at              = #{startedAt},
+            finished_at             = NULL
+        WHERE business_date = #{businessDate}
+          AND daily_closing_status_id = #{failed}
+    </update>
+
+    <update id="updateInProgressToFinished">
+        <bind name="inProgress" value="@com.repayment.global.code.DailyClosingStatus@IN_PROGRESS"/>
+        UPDATE daily_closing
+        SET daily_closing_status_id = #{status},
+            finished_at             = #{finishedAt}
+        WHERE business_date = #{businessDate}
+          AND daily_closing_status_id = #{inProgress}
+    </update>
+</mapper>
