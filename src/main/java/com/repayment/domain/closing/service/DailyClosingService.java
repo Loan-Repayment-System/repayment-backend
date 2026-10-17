@@ -40,11 +40,10 @@ public class DailyClosingService {
             dailyClosingMapper.insertInProgress(businessDate, now);
             return;
         }
-        if (status.get() == DailyClosingStatus.COMPLETED) {
-            throw new DailyClosingAlreadyCompletedException(businessDate);
-        }
-        if (dailyClosingMapper.updateFailedToInProgress(businessDate, now) == 0) {
-            throw new DailyClosingAlreadyRunningException(businessDate);
+        switch (status.get()) {
+            case FAILED -> restart(businessDate, now);
+            case IN_PROGRESS -> throw new DailyClosingAlreadyRunningException(businessDate);
+            case COMPLETED -> throw new DailyClosingAlreadyCompletedException(businessDate);
         }
     }
 
@@ -68,6 +67,13 @@ public class DailyClosingService {
     public void fail(LocalDate businessDate) {
         dailyClosingMapper.updateInProgressToFinished(
                 businessDate, DailyClosingStatus.FAILED, LocalDateTime.now(clock));
+    }
+
+    // 조회한 뒤 다른 실행이 먼저 '진행중'으로 바꿨으면 바뀐 행이 0이다.
+    private void restart(LocalDate businessDate, LocalDateTime now) {
+        if (dailyClosingMapper.updateFailedToInProgress(businessDate, now) == 0) {
+            throw new DailyClosingAlreadyRunningException(businessDate);
+        }
     }
 
     private void validatePreviousCompleted(LocalDate businessDate) {
