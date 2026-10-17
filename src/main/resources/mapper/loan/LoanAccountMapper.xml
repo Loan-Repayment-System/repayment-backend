@@ -67,6 +67,14 @@
         WHERE la.loan_account_id = #{loanAccountId}
     </select>
 
+    <!-- last_confirmed_installment_no는 기본값 0(확정한 회차 없음)이다. -->
+    <insert id="insertLoanAccount" useGeneratedKeys="true" keyProperty="loanAccountId">
+        INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, loan_status_id,
+                                  loan_principal_balance, monthly_payment_day)
+        VALUES (#{loanContractId}, #{repaymentAccountId}, #{accountNo}, #{loanStatusId},
+                #{loanPrincipalBalance}, #{monthlyPaymentDay})
+    </insert>
+
     <update id="updateSubtractLoanPrincipalBalance">
         UPDATE loan_account
         SET loan_principal_balance = loan_principal_balance - #{amount}

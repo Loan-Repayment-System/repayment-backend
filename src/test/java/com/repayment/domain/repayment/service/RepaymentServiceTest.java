@@ -114,7 +114,7 @@ class RepaymentServiceTest {
                 repaymentMapper, installmentAllocationService, accelerationAllocationService,
                 maturityOverdueAllocationService, repaymentScheduleMapper, repaymentScheduleJudgmentService,
                 delinquencyResolutionService, loanStatusJudgmentService, loanStatusChangeService,
-                new RepaymentProperties(COLLECTION_ACCOUNT_NO), clock);
+                new RepaymentProperties(COLLECTION_ACCOUNT_NO, "100-000-000002"), clock);
     }
 
     @Nested

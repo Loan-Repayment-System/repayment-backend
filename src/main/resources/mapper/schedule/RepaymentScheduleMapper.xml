@@ -48,6 +48,16 @@
         ORDER BY installment_no
     </select>
 
+    <!-- 금액·금리·확정 시각은 NULL, 낸 금액은 기본값 0이다. 예정일 5일 전에 상환금 확정이 채운다. -->
+    <insert id="insertScheduledInstallments">
+        <bind name="scheduled" value="@com.repayment.global.code.RepaymentScheduleStatus@SCHEDULED"/>
+        INSERT INTO repayment_schedule (loan_account_id, installment_no, repayment_schedule_status_id, scheduled_date)
+        VALUES
+        <foreach collection="installments" item="installment" separator=",">
+            (#{loanAccountId}, #{installment.installmentNo}, #{scheduled}, #{installment.scheduledDate})
+        </foreach>
+    </insert>
+
     <update id="updateConfirmation">
         UPDATE repayment_schedule
         SET scheduled_principal          = #{amount.principal},

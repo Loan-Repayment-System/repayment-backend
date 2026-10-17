@@ -115,6 +115,46 @@ class AccountMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("계좌가 그 회원의 것인지 확인할 때")
+    class 회원_계좌_확인 {
+
+        @Test
+        @DisplayName("회원의 계좌면 true다")
+        void 회원의_계좌면_true다() {
+            // given
+            long memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('owner-test', 'pw', '주인')");
+            long ownedAccountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
+                    + "VALUES (?, '110-900-000001', 0, 1)", memberId);
+
+            // when
+            boolean result = accountMapper.existsByAccountIdAndMemberId(ownedAccountId, memberId);
+
+            // then
+            assertThat(result).isTrue();
+        }
+
+        @Test
+        @DisplayName("다른 회원의 계좌와 은행 계좌(회원 없음)는 모두 false다")
+        void 다른_회원_계좌와_은행_계좌는_false다() {
+            // given
+            long memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('owner-test', 'pw', '주인')");
+            long otherMemberId = insert("INSERT INTO member (login_id, password, name) VALUES ('other-test', 'pw', '남')");
+            long otherAccountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
+                    + "VALUES (?, '110-900-000002', 0, 1)", otherMemberId);
+            long bankAccountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
+                    + "VALUES (NULL, '100-900-000001', 0, 1)");
+
+            // when
+            boolean otherResult = accountMapper.existsByAccountIdAndMemberId(otherAccountId, memberId);
+            boolean bankResult = accountMapper.existsByAccountIdAndMemberId(bankAccountId, memberId);
+
+            // then
+            assertThat(otherResult).isFalse();
+            assertThat(bankResult).isFalse();
+        }
+    }
+
     private long insert(String sql, Object... args) {
         jdbcTemplate.update(sql, args);
         return jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);

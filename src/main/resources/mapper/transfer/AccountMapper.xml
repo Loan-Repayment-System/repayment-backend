@@ -17,6 +17,14 @@
         WHERE account_no = #{accountNo}
     </select>
 
+    <!-- 은행 계좌는 member_id가 NULL이라 어느 회원으로도 true가 되지 않는다. -->
+    <select id="existsByAccountIdAndMemberId" resultType="boolean">
+        SELECT EXISTS (SELECT 1
+                       FROM account
+                       WHERE account_id = #{accountId}
+                         AND member_id = #{memberId})
+    </select>
+
     <update id="updateBalance">
         UPDATE account
         SET balance = #{balance}
