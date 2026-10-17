@@ -142,7 +142,7 @@ class RepaymentServiceTest {
             InOrder inOrder = inOrder(repaymentEligibilityService, internalTransferService, repaymentMapper,
                     installmentAllocationService, repaymentScheduleJudgmentService, delinquencyResolutionService,
                     loanStatusJudgmentService, loanStatusChangeService);
-            then(repaymentEligibilityService).should(inOrder).check(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT);
+            then(repaymentEligibilityService).should(inOrder).check(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, TODAY);
             then(internalTransferService).should(inOrder)
                     .transfer(any(), any(), any(), anyString());
             then(repaymentMapper).should(inOrder).insertRepayment(any());
@@ -176,6 +176,16 @@ class RepaymentServiceTest {
             assertThat(recorded.getPaidAmount()).isEqualByComparingTo("30000");
             assertThat(recorded.getPaidAt()).isEqualTo(NOW);
             assertThat(recorded.getTransactionNo()).isEqualTo(transactionNo.getValue());
+        }
+
+        @Test
+        @DisplayName("상환 시각 2026-10-16 14:30의 날짜 10/16을 기준일로 상환 가능 확인에 넘긴다")
+        void 상환_시각의_날짜로_상환_가능_확인을_부른다() {
+            // when
+            repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER);
+
+            // then
+            then(repaymentEligibilityService).should().check(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, TODAY);
         }
 
         @Test
@@ -282,7 +292,7 @@ class RepaymentServiceTest {
         void 확인에서_거절되면_돈이_움직이지_않는다() {
             // given
             NothingToRepayException rejected = new NothingToRepayException(LOAN_ACCOUNT_ID);
-            given(repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT)).willThrow(rejected);
+            given(repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, TODAY)).willThrow(rejected);
 
             // when
             Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, REQUEST_KEY, RepaymentChannel.CUSTOMER));
@@ -333,7 +343,7 @@ class RepaymentServiceTest {
     }
 
     private void givenEligible(LoanJudgmentStatus latestJudgment) {
-        given(repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT)).willReturn(
+        given(repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, AMOUNT, TODAY)).willReturn(
                 new RepaymentEligibilityResponse(REPAYMENT_ACCOUNT_ID, latestJudgment,
                         new RepayableAmountResponse(AMOUNT, TARGETS)));
     }

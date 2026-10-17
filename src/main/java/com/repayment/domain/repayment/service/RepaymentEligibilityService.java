@@ -1,5 +1,6 @@
 package com.repayment.domain.repayment.service;
 
+import com.repayment.domain.closing.mapper.DailyClosingMapper;
 import com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse;
 import com.repayment.domain.loan.exception.LoanAccountAccessDeniedException;
 import com.repayment.domain.loan.exception.LoanAccountNotFoundException;
@@ -11,12 +12,15 @@ import com.repayment.domain.repayment.dto.response.RepaymentEligibilityResponse;
 import com.repayment.domain.repayment.exception.InvalidRepaymentAmountException;
 import com.repayment.domain.repayment.exception.NothingToRepayException;
 import com.repayment.domain.repayment.exception.RepaymentExceedsRepayableAmountException;
+import com.repayment.domain.repayment.exception.RepaymentUnavailableDuringClosingException;
+import com.repayment.global.code.DailyClosingStatus;
 import com.repayment.global.code.LoanJudgmentStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * 대출을 잠그고 지금 받을 수 없는 상환 요청을 거절한다. 위에서부터 검사해 처음 걸린 것으로 거절한다.
@@ -27,12 +31,21 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class RepaymentEligibilityService {
 
+    private final DailyClosingMapper dailyClosingMapper;
     private final LoanAccountMapper loanAccountMapper;
     private final LoanStatusJudgmentMapper loanStatusJudgmentMapper;
     private final RepayableAmountService repayableAmountService;
 
     @Transactional
-    public RepaymentEligibilityResponse check(Long loanAccountId, Long memberId, BigDecimal amount) {
+    public RepaymentEligibilityResponse check(Long loanAccountId, Long memberId, BigDecimal amount, LocalDate businessDate) {
+        // 대출과 상관없는 조건이라, 어차피 거절할 요청이 대출을 잠그지 않도록 먼저 본다.
+        boolean closingCompleted = dailyClosingMapper.findStatusByBusinessDate(businessDate)
+                .filter(status -> status == DailyClosingStatus.COMPLETED)
+                .isPresent();
+        if (!closingCompleted) {
+            throw new RepaymentUnavailableDuringClosingException(businessDate);
+        }
+
         RepaymentLoanAccountResponse loanAccount = loanAccountMapper.findRepaymentLoanAccountForUpdate(loanAccountId)
                 .orElseThrow(() -> new LoanAccountNotFoundException(loanAccountId));
         // 남의 대출이 완제인지, 갚을 금액이 얼마인지 알 수 없도록 본인 확인을 먼저 한다.
