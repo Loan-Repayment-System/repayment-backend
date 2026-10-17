@@ -1,5 +1,6 @@
 package com.repayment.domain.repayment.service;
 
+import com.repayment.domain.closing.mapper.DailyClosingMapper;
 import com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse;
 import com.repayment.domain.loan.exception.LoanAccountAccessDeniedException;
 import com.repayment.domain.loan.exception.LoanAccountNotFoundException;
@@ -12,6 +13,8 @@ import com.repayment.domain.repayment.dto.response.RepaymentTargetResponse;
 import com.repayment.domain.repayment.exception.InvalidRepaymentAmountException;
 import com.repayment.domain.repayment.exception.NothingToRepayException;
 import com.repayment.domain.repayment.exception.RepaymentExceedsRepayableAmountException;
+import com.repayment.domain.repayment.exception.RepaymentUnavailableDuringClosingException;
+import com.repayment.global.code.DailyClosingStatus;
 import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.RepaymentTargetType;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +42,10 @@ class RepaymentEligibilityServiceTest {
     private static final long LOAN_ACCOUNT_ID = 10L;
     private static final long MEMBER_ID = 1L;
     private static final long REPAYMENT_ACCOUNT_ID = 30L;
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 16);
+
+    @Mock
+    private DailyClosingMapper dailyClosingMapper;
 
     @Mock
     private LoanAccountMapper loanAccountMapper;
@@ -52,6 +60,64 @@ class RepaymentEligibilityServiceTest {
     private RepaymentEligibilityService repaymentEligibilityService;
 
     @Nested
+    @DisplayName("오늘 일마감 상태를 볼 때")
+    class 일마감_상태 {
+
+        @Test
+        @DisplayName("오늘 10/16 일마감 행이 없으면 일마감 중이라고 거절하고 대출을 잠그지 않는다")
+        void 일마감_행이_없으면_거절한다() {
+            // given
+            given(dailyClosingMapper.findStatusByBusinessDate(TODAY)).willReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
+                    .isInstanceOf(RepaymentUnavailableDuringClosingException.class);
+            then(loanAccountMapper).shouldHaveNoInteractions();
+        }
+
+        @Test
+        @DisplayName("오늘 10/16 일마감이 진행중이면 일마감 중이라고 거절하고 대출을 잠그지 않는다")
+        void 일마감이_진행중이면_거절한다() {
+            // given
+            givenDailyClosing(DailyClosingStatus.IN_PROGRESS);
+
+            // when & then
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
+                    .isInstanceOf(RepaymentUnavailableDuringClosingException.class);
+            then(loanAccountMapper).shouldHaveNoInteractions();
+        }
+
+        @Test
+        @DisplayName("오늘 10/16 일마감이 실패면 일마감 중이라고 거절하고 대출을 잠그지 않는다")
+        void 일마감이_실패면_거절한다() {
+            // given
+            givenDailyClosing(DailyClosingStatus.FAILED);
+
+            // when & then
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
+                    .isInstanceOf(RepaymentUnavailableDuringClosingException.class);
+            then(loanAccountMapper).shouldHaveNoInteractions();
+        }
+
+        @Test
+        @DisplayName("오늘 10/16 일마감이 완료고 갚을 금액이 5,000원이면 다음 검사로 넘어가 통과한다")
+        void 일마감이_완료면_통과한다() {
+            // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
+            givenLoanAccount();
+            givenLatestJudgment(LoanJudgmentStatus.NORMAL);
+            givenRepayableAmount(LoanJudgmentStatus.NORMAL, "5000");
+
+            // when
+            RepaymentEligibilityResponse result =
+                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY);
+
+            // then
+            assertThat(result.getRepayableAmount().getTotalAmount()).isEqualByComparingTo("5000");
+        }
+    }
+
+    @Nested
     @DisplayName("대출을 잠글 때")
     class 대출_잠금 {
 
@@ -60,10 +126,11 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("대출 행이 없으면 대출을 찾을 수 없다고 거절한다")
         void 없는_대출은_거절한다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             given(loanAccountMapper.findRepaymentLoanAccountForUpdate(LOAN_ACCOUNT_ID)).willReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000")))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(LoanAccountNotFoundException.class);
         }
 
@@ -72,10 +139,11 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("대출 주인이 회원 1인데 회원 2가 요청하면 본인 대출이 아니라고 거절하고 판정·갚을 금액을 조회하지 않는다")
         void 남의_대출은_다른_검사보다_먼저_거절한다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, 2L, new BigDecimal("1000")))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, 2L, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(LoanAccountAccessDeniedException.class);
             then(loanStatusJudgmentMapper).shouldHaveNoInteractions();
             then(repayableAmountService).shouldHaveNoInteractions();
@@ -91,10 +159,11 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("0원이면 금액이 올바르지 않다고 거절한다")
         void 영원은_거절한다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("0")))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("0"), TODAY))
                     .isInstanceOf(InvalidRepaymentAmountException.class);
         }
 
@@ -103,10 +172,11 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("-1,000원이면 금액이 올바르지 않다고 거절한다")
         void 음수는_거절한다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("-1000")))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("-1000"), TODAY))
                     .isInstanceOf(InvalidRepaymentAmountException.class);
         }
 
@@ -115,10 +185,11 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("1,000.5원이면 원 단위가 아니라 금액이 올바르지 않다고 거절한다")
         void 원_미만_자릿수는_거절한다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000.5")))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000.5"), TODAY))
                     .isInstanceOf(InvalidRepaymentAmountException.class);
         }
 
@@ -126,13 +197,14 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("1,000.00원이고 갚을 금액이 5,000원이면 원 단위로 보고 통과한다")
         void 영으로_끝나는_소수는_원_단위로_본다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
             givenLatestJudgment(LoanJudgmentStatus.NORMAL);
             givenRepayableAmount(LoanJudgmentStatus.NORMAL, "5000");
 
             // when
             RepaymentEligibilityResponse result =
-                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000.00"));
+                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000.00"), TODAY);
 
             // then
             assertThat(result.getRepayableAmount().getTotalAmount()).isEqualByComparingTo("5000");
@@ -148,11 +220,12 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("2 완제면 이미 완제됐다고 거절하고 갚을 금액을 계산하지 않는다")
         void 완제는_거절한다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
             givenLatestJudgment(LoanJudgmentStatus.PAID_OFF);
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000")))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(LoanAlreadyPaidOffException.class);
             then(repayableAmountService).shouldHaveNoInteractions();
         }
@@ -161,13 +234,14 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("판정 행이 없고 갚을 금액이 5,000원이면 0 정상으로 갚을 금액을 계산하고 판정 0 정상으로 통과한다")
         void 판정이_없으면_0_정상으로_본다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
             given(loanStatusJudgmentMapper.findLatestJudgmentStatus(LOAN_ACCOUNT_ID)).willReturn(Optional.empty());
             givenRepayableAmount(LoanJudgmentStatus.NORMAL, "5000");
 
             // when
             RepaymentEligibilityResponse result =
-                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"));
+                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY);
 
             // then
             assertThat(result.getLatestJudgment()).isEqualTo(LoanJudgmentStatus.NORMAL);
@@ -184,12 +258,13 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("0 정상인데 갚을 금액이 0원이면 갚을 금액이 없다고 거절한다")
         void 갚을_금액이_0원이면_거절한다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
             givenLatestJudgment(LoanJudgmentStatus.NORMAL);
             givenRepayableAmount(LoanJudgmentStatus.NORMAL, "0");
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000")))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(NothingToRepayException.class);
         }
 
@@ -198,12 +273,13 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("갚을 금액 5,000원에 5,001원을 내면 갚을 금액보다 많다고 거절하고 응답 data에 5,000원을 담는다")
         void 일원이라도_초과하면_거절한다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
             givenLatestJudgment(LoanJudgmentStatus.NORMAL);
             givenRepayableAmount(LoanJudgmentStatus.NORMAL, "5000");
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("5001")))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("5001"), TODAY))
                     .isInstanceOfSatisfying(RepaymentExceedsRepayableAmountException.class,
                             e -> assertThat((BigDecimal) e.getData()).isEqualByComparingTo("5000"));
         }
@@ -212,13 +288,14 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("갚을 금액 5,000원에 5,000원을 내면 통과한다")
         void 딱_맞게_내면_통과한다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
             givenLatestJudgment(LoanJudgmentStatus.NORMAL);
             givenRepayableAmount(LoanJudgmentStatus.NORMAL, "5000");
 
             // when
             RepaymentEligibilityResponse result =
-                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("5000"));
+                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("5000"), TODAY);
 
             // then
             assertThat(result.getRepayableAmount().getTotalAmount()).isEqualByComparingTo("5000");
@@ -229,6 +306,7 @@ class RepaymentEligibilityServiceTest {
         @DisplayName("21 1회 연체에서 갚을 금액 5,000원 중 1원만 내면 통과하고 상환 계좌 30, 판정 21, 갚을 금액 내역을 그대로 돌려준다")
         void 부분_상환은_통과하고_상환_처리가_쓸_값을_돌려준다() {
             // given
+            givenDailyClosing(DailyClosingStatus.COMPLETED);
             givenLoanAccount();
             givenLatestJudgment(LoanJudgmentStatus.INSTALLMENT_OVERDUE);
             RepayableAmountResponse repayableAmount =
@@ -236,13 +314,17 @@ class RepaymentEligibilityServiceTest {
 
             // when
             RepaymentEligibilityResponse result =
-                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1"));
+                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1"), TODAY);
 
             // then
             assertThat(result.getRepaymentAccountId()).isEqualTo(REPAYMENT_ACCOUNT_ID);
             assertThat(result.getLatestJudgment()).isEqualTo(LoanJudgmentStatus.INSTALLMENT_OVERDUE);
             assertThat(result.getRepayableAmount()).isSameAs(repayableAmount);
         }
+    }
+
+    private void givenDailyClosing(DailyClosingStatus status) {
+        given(dailyClosingMapper.findStatusByBusinessDate(TODAY)).willReturn(Optional.of(status));
     }
 
     private void givenLoanAccount() {

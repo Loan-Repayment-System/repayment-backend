@@ -62,6 +62,7 @@ public enum ErrorCode {
     REPAYMENT_TARGET_TYPE_MISMATCH(HttpStatus.INTERNAL_SERVER_ERROR, "충당할 수 없는 종류의 대상이 있습니다."),
     REPAYMENT_AMOUNT_LEFT_OVER(HttpStatus.INTERNAL_SERVER_ERROR, "충당하고 남은 금액이 있습니다."),
     COLLECTION_ACCOUNT_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "수납 계좌를 찾지 못했습니다."),
+    REPAYMENT_UNAVAILABLE_DURING_CLOSING(HttpStatus.SERVICE_UNAVAILABLE, "일마감 처리 중이라 지금은 상환할 수 없습니다. 잠시 후 다시 시도해 주세요."),
     ;
 
     private final HttpStatus status;

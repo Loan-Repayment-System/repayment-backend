@@ -58,7 +58,7 @@ public class RepaymentService {
         LocalDate businessDate = now.toLocalDate();
 
         RepaymentEligibilityResponse eligibility =
-                repaymentEligibilityService.check(loanAccountId, memberId, amount);
+                repaymentEligibilityService.check(loanAccountId, memberId, amount, businessDate);
 
         String collectionAccountNo = repaymentProperties.collectionAccountNo();
         Long collectionAccountId = accountMapper.findAccountIdByAccountNo(collectionAccountNo)
