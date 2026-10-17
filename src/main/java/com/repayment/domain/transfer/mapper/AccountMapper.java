@@ -14,5 +14,7 @@ public interface AccountMapper {
 
     Optional<Long> findAccountIdByAccountNo(String accountNo);
 
+    boolean existsByAccountIdAndMemberId(@Param("accountId") Long accountId, @Param("memberId") Long memberId);
+
     int updateBalance(@Param("accountId") Long accountId, @Param("balance") BigDecimal balance);
 }

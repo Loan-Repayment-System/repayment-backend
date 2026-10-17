@@ -1,6 +1,7 @@
 package com.repayment.domain.loan.mapper;
 
 import com.repayment.TestcontainersConfig;
+import com.repayment.domain.loan.dto.response.LoanAccountResponse;
 import com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse;
 import com.repayment.global.code.LoanStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -286,6 +288,41 @@ class LoanAccountMapperIntegrationTest {
         private int findLoanStatusId(long loanAccountId) {
             return jdbcTemplate.queryForObject(
                     "SELECT loan_status_id FROM loan_account WHERE loan_account_id = ?", Integer.class, loanAccountId);
+        }
+    }
+
+    @Nested
+    @DisplayName("개설한 대출 계좌를 저장할 때")
+    class 대출_계좌_저장 {
+
+        @Test
+        @DisplayName("계좌번호 900-000-000123, 정상, 원금잔액 10,000,000원, 납입일 17을 넣으면 만든 id를 채우고 마지막 확정 회차는 0이다")
+        void 넣은_값을_저장하고_마지막_확정_회차는_0이다() {
+            // given
+            LoanAccountResponse loanAccount = LoanAccountResponse.builder()
+                    .loanContractId(contractId)
+                    .repaymentAccountId(accountId)
+                    .accountNo("900-000-000123")
+                    .loanStatusId(LoanStatus.NORMAL)
+                    .loanPrincipalBalance(new BigDecimal("10000000"))
+                    .monthlyPaymentDay(17)
+                    .build();
+
+            // when
+            loanAccountMapper.insertLoanAccount(loanAccount);
+
+            // then
+            assertThat(loanAccount.getLoanAccountId()).isNotNull();
+            Map<String, Object> row = jdbcTemplate.queryForMap("SELECT loan_contract_id, repayment_account_id, account_no, "
+                    + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no "
+                    + "FROM loan_account WHERE loan_account_id = ?", loanAccount.getLoanAccountId());
+            assertThat(((Number) row.get("loan_contract_id")).longValue()).isEqualTo(contractId);
+            assertThat(((Number) row.get("repayment_account_id")).longValue()).isEqualTo(accountId);
+            assertThat(row.get("account_no")).isEqualTo("900-000-000123");
+            assertThat(row.get("loan_status_id")).isEqualTo(NORMAL_STATUS);
+            assertThat((BigDecimal) row.get("loan_principal_balance")).isEqualByComparingTo("10000000");
+            assertThat(((Number) row.get("monthly_payment_day")).intValue()).isEqualTo(17);
+            assertThat(row.get("last_confirmed_installment_no")).isEqualTo(0);
         }
     }
 

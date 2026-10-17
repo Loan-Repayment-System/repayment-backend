@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.loan.mapper.LoanContractMapper">
+
+    <insert id="insertLoanContract" useGeneratedKeys="true" keyProperty="loanContractId">
+        INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, contract_principal,
+                                   contract_additional_rate, contract_base_rate, total_installments)
+        VALUES (#{loanProductId}, #{memberId}, #{contractDate}, #{maturityDate}, #{contractPrincipal},
+                #{contractAdditionalRate}, #{contractBaseRate}, #{totalInstallments})
+    </insert>
+</mapper>

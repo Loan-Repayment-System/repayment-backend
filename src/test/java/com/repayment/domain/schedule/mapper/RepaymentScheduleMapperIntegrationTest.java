@@ -5,6 +5,7 @@ import com.repayment.domain.schedule.dto.response.AppliedRateResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentAmountResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleConfirmTargetResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse;
+import com.repayment.domain.schedule.dto.response.ScheduledInstallmentResponse;
 import com.repayment.global.code.InterestType;
 import com.repayment.global.code.RepaymentMethod;
 import com.repayment.global.code.RepaymentScheduleStatus;
@@ -321,6 +322,53 @@ class RepaymentScheduleMapperIntegrationTest {
         private Map<String, Object> findPaid(long repaymentScheduleId) {
             return jdbcTemplate.queryForMap("SELECT paid_interest, paid_principal FROM repayment_schedule "
                     + "WHERE repayment_schedule_id = ?", repaymentScheduleId);
+        }
+    }
+
+    @Nested
+    @DisplayName("개설할 때 회차를 저장할 때")
+    class 회차_저장 {
+
+        @Test
+        @DisplayName("회차 3개(11/17, 12/17, 1/17)를 넣으면 예정 상태로 3행이 생기고 금액·금리·확정 시각은 비고 낸 금액은 0이다")
+        void 예정일만_넣고_나머지는_비운다() {
+            // given
+            long newLoanAccountId = insertEmptyLoanAccount();
+            List<ScheduledInstallmentResponse> installments = List.of(
+                    new ScheduledInstallmentResponse(1, LocalDate.of(2026, 11, 17)),
+                    new ScheduledInstallmentResponse(2, LocalDate.of(2026, 12, 17)),
+                    new ScheduledInstallmentResponse(3, LocalDate.of(2027, 1, 17)));
+
+            // when
+            repaymentScheduleMapper.insertScheduledInstallments(newLoanAccountId, installments);
+
+            // then
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT installment_no, "
+                    + "repayment_schedule_status_id, scheduled_date, scheduled_principal, scheduled_interest, "
+                    + "applied_base_rate, applied_additional_rate, confirmed_at, paid_principal, paid_interest "
+                    + "FROM repayment_schedule WHERE loan_account_id = ? ORDER BY installment_no", newLoanAccountId);
+            assertThat(rows).extracting(row -> row.get("installment_no")).containsExactly(1, 2, 3);
+            assertThat(rows).extracting(row -> row.get("scheduled_date").toString())
+                    .containsExactly("2026-11-17", "2026-12-17", "2027-01-17");
+            assertThat(rows).allSatisfy(row -> {
+                assertThat(row.get("repayment_schedule_status_id")).isEqualTo(1);
+                assertThat(row.get("scheduled_principal")).isNull();
+                assertThat(row.get("scheduled_interest")).isNull();
+                assertThat(row.get("applied_base_rate")).isNull();
+                assertThat(row.get("applied_additional_rate")).isNull();
+                assertThat(row.get("confirmed_at")).isNull();
+                assertThat((BigDecimal) row.get("paid_principal")).isEqualByComparingTo("0");
+                assertThat((BigDecimal) row.get("paid_interest")).isEqualByComparingTo("0");
+            });
+        }
+
+        private long insertEmptyLoanAccount() {
+            long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
+                    + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
+                    + "VALUES (?, ?, '2026-10-17', '2027-01-17', 3000000, 1.5, 3.2, 3)", productId, memberId);
+            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
+                    + "loan_status_id, loan_principal_balance, monthly_payment_day) "
+                    + "VALUES (?, ?, '900-000-000999', 1, 3000000, 17)", contractId, accountId);
         }
     }
 

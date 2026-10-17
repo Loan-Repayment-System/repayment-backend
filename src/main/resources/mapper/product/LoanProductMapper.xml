@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.product.mapper.LoanProductMapper">
+
+    <select id="findAdditionalRateById" resultType="java.math.BigDecimal">
+        SELECT additional_rate
+        FROM loan_product
+        WHERE loan_product_id = #{loanProductId}
+    </select>
+</mapper>
