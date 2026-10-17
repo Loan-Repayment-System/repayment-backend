@@ -18,6 +18,12 @@ public enum ErrorCode {
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
 
+    // 일마감
+    PREVIOUS_DAILY_CLOSING_NOT_COMPLETED(HttpStatus.INTERNAL_SERVER_ERROR, "전날 일마감이 완료되지 않았습니다."),
+    DAILY_CLOSING_ALREADY_COMPLETED(HttpStatus.INTERNAL_SERVER_ERROR, "이미 완료된 일마감입니다."),
+    DAILY_CLOSING_ALREADY_RUNNING(HttpStatus.INTERNAL_SERVER_ERROR, "같은 기준일의 일마감이 이미 진행중입니다."),
+    DAILY_CLOSING_NOT_RUNNING(HttpStatus.INTERNAL_SERVER_ERROR, "진행중인 일마감이 없습니다."),
+
     // 기준금리
     BASE_RATE_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "기준금리를 조회하지 못했습니다."),
     BASE_RATE_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "적용할 기준금리를 찾지 못했습니다."),
