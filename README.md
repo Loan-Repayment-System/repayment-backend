@@ -77,10 +77,3 @@ docker compose up -d      # 로컬 MySQL (스키마는 앱이 뜰 때 Flyway가 
 ./gradlew bootRun         # http://localhost:8080, 기본 프로필 local
 ./gradlew build           # 컴파일 + 테스트 + jar 패키징 (Docker 필요, Testcontainers)
 ```
-
-## 문서
-
-- 테이블 목록과 관계: [`docs/erd.md`](docs/erd.md) (컬럼 상세는 [`docs/reference/table_definition.md`](docs/reference/table_definition.md))
-- 상환금액 계산식: [`docs/reference/repayment-amount-calculator-verification.md`](docs/reference/repayment-amount-calculator-verification.md)
-- 업무 규칙의 근거: [`docs/reference/가계대출상품설명서.pdf`](docs/reference/가계대출상품설명서.pdf)
-- 업무 규칙별 구현 내용: 각 PR 본문 (마일스톤 `[도메인] 01 ~ 23`이 목차)
