@@ -1,6 +1,8 @@
 package com.repayment.batch.job;
 
 import com.repayment.TestcontainersConfig;
+import com.repayment.domain.baserate.exception.BaseRateFetchFailedException;
+import com.repayment.domain.baserate.service.BaseRateService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -17,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,8 +28,10 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.BDDMockito.given;
 
 // Job 테스트는 @Transactional로 롤백할 수 없어 daily_closing을 테스트마다 지운다.
+// 한국은행 API를 실제로 부를 수 없어 기준금리 조회는 목으로 바꾼다.
 @SpringBatchTest
 @SpringBootTest
 @Import(TestcontainersConfig.class)
@@ -49,6 +54,9 @@ class DailyClosingJobIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @MockitoBean
+    private BaseRateService baseRateService;
+
     @AfterEach
     void tearDown() {
         jdbcTemplate.update("DELETE FROM daily_closing");
@@ -59,10 +67,11 @@ class DailyClosingJobIntegrationTest {
     class 시작할_수_있음 {
 
         @Test
-        @DisplayName("10/17로 실행하면 시작·완료 Step이 차례로 끝나고 10/17 행이 완료로 남는다")
+        @DisplayName("10/17로 실행하면 시작·기준금리 조회·완료 Step이 차례로 끝나고 10/17 행이 완료로 남는다")
         void 시작부터_완료까지_이어진다() throws Exception {
             // given
             insertClosing(YESTERDAY, COMPLETED);
+            given(baseRateService.collectKoribor12m(TODAY)).willReturn(1);
 
             // when
             JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters(TODAY));
@@ -73,9 +82,31 @@ class DailyClosingJobIntegrationTest {
                     .extracting(StepExecution::getStepName, StepExecution::getStatus)
                     .containsExactly(
                             tuple("startClosingStep", BatchStatus.COMPLETED),
+                            tuple("fetchBaseRateStep", BatchStatus.COMPLETED),
                             tuple("completeClosingStep", BatchStatus.COMPLETED));
             Map<String, Object> row = findClosing(TODAY);
             assertThat(row.get("daily_closing_status_id")).isEqualTo(COMPLETED);
+            assertThat(row.get("finished_at")).isNotNull();
+        }
+
+        @Test
+        @DisplayName("기준금리 조회가 실패하면 Job이 실패하고 완료 Step은 실행하지 않으며 10/17 행을 실패로 바꾼다")
+        void 시작한_뒤_실패하면_실패로_바꾼다() throws Exception {
+            // given
+            insertClosing(YESTERDAY, COMPLETED);
+            given(baseRateService.collectKoribor12m(TODAY))
+                    .willThrow(new BaseRateFetchFailedException("한국은행 API 오류 응답 [INFO-100]"));
+
+            // when
+            JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters(TODAY));
+
+            // then
+            assertThat(execution.getStatus()).isEqualTo(BatchStatus.FAILED);
+            assertThat(execution.getStepExecutions())
+                    .extracting(StepExecution::getStepName)
+                    .containsExactly("startClosingStep", "fetchBaseRateStep");
+            Map<String, Object> row = findClosing(TODAY);
+            assertThat(row.get("daily_closing_status_id")).isEqualTo(FAILED);
             assertThat(row.get("finished_at")).isNotNull();
         }
     }

@@ -2,12 +2,14 @@ package com.repayment.batch.job;
 
 import com.repayment.batch.listener.DailyClosingJobListener;
 import com.repayment.batch.step.CompleteClosingTasklet;
+import com.repayment.batch.step.FetchBaseRateTasklet;
 import com.repayment.batch.step.StartClosingTasklet;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -20,11 +22,12 @@ import org.springframework.transaction.PlatformTransactionManager;
 public class DailyClosingJobConfig {
 
     @Bean
-    public Job dailyClosingJob(JobRepository jobRepository, Step startClosingStep, Step completeClosingStep,
-                               DailyClosingJobListener dailyClosingJobListener) {
+    public Job dailyClosingJob(JobRepository jobRepository, Step startClosingStep, Step fetchBaseRateStep,
+                               Step completeClosingStep, DailyClosingJobListener dailyClosingJobListener) {
         return new JobBuilder("dailyClosingJob", jobRepository)
                 .listener(dailyClosingJobListener)
                 .start(startClosingStep)
+                .next(fetchBaseRateStep)
                 .next(completeClosingStep)
                 .build();
     }
@@ -34,6 +37,14 @@ public class DailyClosingJobConfig {
                                  StartClosingTasklet startClosingTasklet) {
         return new StepBuilder("startClosingStep", jobRepository)
                 .tasklet(startClosingTasklet, transactionManager)
+                .build();
+    }
+
+    // API를 기다리는 동안 DB 연결을 잡지 않도록 Step 트랜잭션을 쓰지 않는다. 저장은 도메인이 따로 트랜잭션으로 묶는다.
+    @Bean
+    public Step fetchBaseRateStep(JobRepository jobRepository, FetchBaseRateTasklet fetchBaseRateTasklet) {
+        return new StepBuilder("fetchBaseRateStep", jobRepository)
+                .tasklet(fetchBaseRateTasklet, new ResourcelessTransactionManager())
                 .build();
     }
 
