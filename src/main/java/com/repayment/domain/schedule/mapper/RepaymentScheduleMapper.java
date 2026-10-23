@@ -20,6 +20,8 @@ public interface RepaymentScheduleMapper {
 
     List<RepaymentScheduleJudgmentTargetResponse> findJudgmentTargets(Long loanAccountId);
 
+    List<RepaymentScheduleJudgmentTargetResponse> findUnfinishedJudgmentTargets(Long loanAccountId);
+
     int insertScheduledInstallments(@Param("loanAccountId") Long loanAccountId,
                                     @Param("installments") List<ScheduledInstallmentResponse> installments);
 

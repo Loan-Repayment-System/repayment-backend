@@ -12,8 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 
 /**
- * 회차 하나를 기준일에 맞게 판정하고, 결과대로 확정하거나 상태를 바꾼다.
- * 어떤 회차를 어떤 순서로 넘길지는 부르는 쪽이 정한다.
+ * 회차를 기준일에 맞게 판정하고, 결과대로 확정하거나 상태를 바꾼다.
+ * 일마감은 대출 단위(judgeLoan)로, 상환은 충당으로 바뀔 회차만 골라 회차 단위(judge)로 부른다.
  */
 @Service
 @RequiredArgsConstructor
@@ -22,6 +22,18 @@ public class RepaymentScheduleJudgmentService {
     private final RepaymentScheduleJudge repaymentScheduleJudge;
     private final RepaymentScheduleConfirmService repaymentScheduleConfirmService;
     private final RepaymentScheduleMapper repaymentScheduleMapper;
+
+    /**
+     * 대출 하나의 끝나지 않은 회차(예정·납부 기한 도래·연체)를 회차 번호 순으로 판정한다.
+     * 앞 회차부터 확정해야 하므로 순서를 지킨다. 한 회차에서 예외가 나면 거기서 멈춘다.
+     */
+    @Transactional
+    public void judgeLoan(Long loanAccountId, LocalDate businessDate) {
+        for (RepaymentScheduleJudgmentTargetResponse target
+                : repaymentScheduleMapper.findUnfinishedJudgmentTargets(loanAccountId)) {
+            judge(target, businessDate);
+        }
+    }
 
     @Transactional
     public void judge(RepaymentScheduleJudgmentTargetResponse target, LocalDate businessDate) {

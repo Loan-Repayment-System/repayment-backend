@@ -48,6 +48,27 @@
         ORDER BY installment_no
     </select>
 
+    <!-- 판정해서 바뀔 수 있는 '예정'·'납부 기한 도래'·'연체' 회차를 회차 번호 순서로 가져온다. 앞 회차부터 확정해야 한다. -->
+    <select id="findUnfinishedJudgmentTargets"
+            resultType="com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse">
+        <bind name="scheduled" value="@com.repayment.global.code.RepaymentScheduleStatus@SCHEDULED"/>
+        <bind name="due" value="@com.repayment.global.code.RepaymentScheduleStatus@DUE"/>
+        <bind name="overdue" value="@com.repayment.global.code.RepaymentScheduleStatus@OVERDUE"/>
+        SELECT repayment_schedule_id,
+               loan_account_id,
+               repayment_schedule_status_id,
+               scheduled_date,
+               confirmed_at,
+               scheduled_principal,
+               scheduled_interest,
+               paid_principal,
+               paid_interest
+        FROM repayment_schedule
+        WHERE loan_account_id = #{loanAccountId}
+          AND repayment_schedule_status_id IN (#{scheduled}, #{due}, #{overdue})
+        ORDER BY installment_no
+    </select>
+
     <!-- 금액·금리·확정 시각은 NULL, 낸 금액은 기본값 0이다. 예정일 5일 전에 상환금 확정이 채운다. -->
     <insert id="insertScheduledInstallments">
         <bind name="scheduled" value="@com.repayment.global.code.RepaymentScheduleStatus@SCHEDULED"/>
