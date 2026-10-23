@@ -4,6 +4,7 @@ import com.repayment.batch.listener.DailyClosingJobListener;
 import com.repayment.batch.step.CompleteClosingTasklet;
 import com.repayment.batch.step.FetchBaseRateTasklet;
 import com.repayment.batch.step.StartClosingTasklet;
+import com.repayment.batch.writer.LoanStatusJudgmentWriter;
 import com.repayment.batch.writer.ScheduleJudgmentWriter;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
@@ -28,13 +29,14 @@ public class DailyClosingJobConfig {
 
     @Bean
     public Job dailyClosingJob(JobRepository jobRepository, Step startClosingStep, Step fetchBaseRateStep,
-                               Step judgeScheduleStep, Step completeClosingStep,
+                               Step judgeScheduleStep, Step judgeLoanStatusStep, Step completeClosingStep,
                                DailyClosingJobListener dailyClosingJobListener) {
         return new JobBuilder("dailyClosingJob", jobRepository)
                 .listener(dailyClosingJobListener)
                 .start(startClosingStep)
                 .next(fetchBaseRateStep)
                 .next(judgeScheduleStep)
+                .next(judgeLoanStatusStep)
                 .next(completeClosingStep)
                 .build();
     }
@@ -63,6 +65,17 @@ public class DailyClosingJobConfig {
                 .<Long, Long>chunk(CHUNK_SIZE, transactionManager)
                 .reader(scheduleJudgmentTargetReader)
                 .writer(scheduleJudgmentWriter)
+                .build();
+    }
+
+    @Bean
+    public Step judgeLoanStatusStep(JobRepository jobRepository, PlatformTransactionManager transactionManager,
+                                    JdbcPagingItemReader<Long> loanStatusJudgmentTargetReader,
+                                    LoanStatusJudgmentWriter loanStatusJudgmentWriter) {
+        return new StepBuilder("judgeLoanStatusStep", jobRepository)
+                .<Long, Long>chunk(CHUNK_SIZE, transactionManager)
+                .reader(loanStatusJudgmentTargetReader)
+                .writer(loanStatusJudgmentWriter)
                 .build();
     }
 

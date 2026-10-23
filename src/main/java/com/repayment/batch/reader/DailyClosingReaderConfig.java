@@ -5,11 +5,13 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.item.database.JdbcPagingItemReader;
 import org.springframework.batch.item.database.Order;
 import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.SingleColumnRowMapper;
 
 import javax.sql.DataSource;
+import java.time.LocalDate;
 import java.util.Map;
 
 /**
@@ -41,6 +43,35 @@ public class DailyClosingReaderConfig {
                 .parameterValues(Map.of(
                         "normal", LoanJudgmentStatus.NORMAL.getId(),
                         "paidOff", LoanJudgmentStatus.PAID_OFF.getId()))
+                .rowMapper(new SingleColumnRowMapper<>(Long.class))
+                .build();
+    }
+
+    // 스케줄 판정 대상 중 같은 기준일 판정 행이 없는 대출. 다시 실행해도 판정 행이 두 번 생기지 않는다.
+    @Bean
+    @StepScope
+    public JdbcPagingItemReader<Long> loanStatusJudgmentTargetReader(
+            DataSource dataSource, @Value("#{jobParameters['businessDate']}") LocalDate businessDate) {
+        return new JdbcPagingItemReaderBuilder<Long>()
+                .name("loanStatusJudgmentTargetReader")
+                .dataSource(dataSource)
+                .pageSize(PAGE_SIZE)
+                .selectClause("SELECT la.loan_account_id")
+                .fromClause("FROM loan_account la")
+                .whereClause("WHERE COALESCE((SELECT lsj.loan_judgment_status_id"
+                        + " FROM loan_status_judgment lsj"
+                        + " WHERE lsj.loan_account_id = la.loan_account_id"
+                        + " ORDER BY lsj.loan_status_judgment_id DESC"
+                        + " LIMIT 1), :normal) <> :paidOff"
+                        + " AND NOT EXISTS (SELECT 1"
+                        + " FROM loan_status_judgment same_day"
+                        + " WHERE same_day.loan_account_id = la.loan_account_id"
+                        + " AND same_day.business_date = :businessDate)")
+                .sortKeys(Map.of("loan_account_id", Order.ASCENDING))
+                .parameterValues(Map.of(
+                        "normal", LoanJudgmentStatus.NORMAL.getId(),
+                        "paidOff", LoanJudgmentStatus.PAID_OFF.getId(),
+                        "businessDate", businessDate))
                 .rowMapper(new SingleColumnRowMapper<>(Long.class))
                 .build();
     }

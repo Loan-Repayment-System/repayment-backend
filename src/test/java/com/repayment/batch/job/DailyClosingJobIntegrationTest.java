@@ -3,6 +3,7 @@ package com.repayment.batch.job;
 import com.repayment.TestcontainersConfig;
 import com.repayment.domain.baserate.exception.BaseRateFetchFailedException;
 import com.repayment.domain.baserate.service.BaseRateService;
+import com.repayment.domain.loan.service.LoanStatusJudgmentService;
 import com.repayment.domain.schedule.service.RepaymentScheduleJudgmentService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -66,6 +67,9 @@ class DailyClosingJobIntegrationTest {
     @MockitoBean
     private RepaymentScheduleJudgmentService repaymentScheduleJudgmentService;
 
+    @MockitoBean
+    private LoanStatusJudgmentService loanStatusJudgmentService;
+
     @AfterEach
     void tearDown() {
         jdbcTemplate.update("DELETE FROM daily_closing");
@@ -82,7 +86,7 @@ class DailyClosingJobIntegrationTest {
     class 시작할_수_있음 {
 
         @Test
-        @DisplayName("대출이 없으면 시작·기준금리 조회·스케줄 판정·완료 Step이 차례로 끝나고 10/17 행이 완료로 남는다")
+        @DisplayName("대출이 없으면 시작·기준금리 조회·스케줄 판정·상태 판정·완료 Step이 차례로 끝나고 10/17 행이 완료로 남는다")
         void 시작부터_완료까지_이어진다() throws Exception {
             // given
             insertClosing(YESTERDAY, COMPLETED);
@@ -99,6 +103,7 @@ class DailyClosingJobIntegrationTest {
                             tuple("startClosingStep", BatchStatus.COMPLETED),
                             tuple("fetchBaseRateStep", BatchStatus.COMPLETED),
                             tuple("judgeScheduleStep", BatchStatus.COMPLETED),
+                            tuple("judgeLoanStatusStep", BatchStatus.COMPLETED),
                             tuple("completeClosingStep", BatchStatus.COMPLETED));
             Map<String, Object> row = findClosing(TODAY);
             assertThat(row.get("daily_closing_status_id")).isEqualTo(COMPLETED);
@@ -106,7 +111,7 @@ class DailyClosingJobIntegrationTest {
         }
 
         @Test
-        @DisplayName("대출 2개 중 하나가 최근 판정 완제면 완제 아닌 대출만 10/17로 1번 판정하고 Job이 완료된다")
+        @DisplayName("대출 2개 중 하나가 최근 판정 완제면 완제 아닌 대출만 10/17로 스케줄 판정·상태 판정을 1번씩 하고 Job이 완료된다")
         void 완제_아닌_대출만_기준일로_판정한다() throws Exception {
             // given
             insertClosing(YESTERDAY, COMPLETED);
@@ -122,6 +127,8 @@ class DailyClosingJobIntegrationTest {
             assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
             then(repaymentScheduleJudgmentService).should(times(1)).judgeLoan(target, TODAY);
             then(repaymentScheduleJudgmentService).should(times(1)).judgeLoan(anyLong(), any());
+            then(loanStatusJudgmentService).should(times(1)).judge(target, TODAY);
+            then(loanStatusJudgmentService).should(times(1)).judge(anyLong(), any());
         }
 
         @Test
