@@ -15,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,6 +28,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Transactional
 @DisplayName("일마감 Reader")
 class DailyClosingReaderConfigIntegrationTest {
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 17);
 
     @Autowired
     private DataSource dataSource;
@@ -85,6 +88,33 @@ class DailyClosingReaderConfigIntegrationTest {
 
             // then
             assertThat(result).containsExactlyElementsOf(loanAccountIds);
+        }
+    }
+
+    @Nested
+    @DisplayName("대출 상태 판정 대상을 기준일 10/17로 읽을 때")
+    class 대출_상태_판정_대상 {
+
+        @Test
+        @DisplayName("A 판정 없음, B 10/16 0 정상, C 10/16 2 완제, D 10/17 21 연체가 이미 있으면 A·B 순서로 읽는다")
+        void 완제와_같은_기준일에_판정한_대출을_뺀다() throws Exception {
+            // given
+            long noJudgment = insertLoanAccount(1);
+            long normal = insertLoanAccount(2);
+            insertJudgment(normal, "2026-10-16", 0);
+            long paidOff = insertLoanAccount(3);
+            insertJudgment(paidOff, "2026-10-15", 0);
+            insertJudgment(paidOff, "2026-10-16", 2);
+            long judgedToday = insertLoanAccount(4);
+            insertJudgment(judgedToday, "2026-10-16", 0);
+            insertJudgment(judgedToday, "2026-10-17", 21);
+
+            // when
+            List<Long> result = readAll(
+                    new DailyClosingReaderConfig().loanStatusJudgmentTargetReader(dataSource, TODAY));
+
+            // then
+            assertThat(result).containsExactly(noJudgment, normal);
         }
     }
 
