@@ -179,6 +179,75 @@ class RepaymentScheduleMapperIntegrationTest {
     }
 
     @Nested
+    @DisplayName("일마감에서 판정할 회차를 조회할 때")
+    class 끝나지_않은_회차_조회 {
+
+        @Test
+        @DisplayName("1회 납입 완료·2회 연체·3회 납부 기한 도래·4·5회 예정을 5·3·4·2·1회 순서로 넣고 다른 대출의 예정 회차가 있으면 이 대출의 2·3·4·5회만 회차 번호 순서로 가져온다")
+        void 예정_납부_기한_도래_연체_회차를_회차_번호_순서로_가져온다() {
+            // given
+            long newLoanAccountId = insertNewLoanAccount("900-000-000101");
+            long fifth = insertSchedule(newLoanAccountId, 5, RepaymentScheduleStatus.SCHEDULED, "2027-03-10");
+            long third = insertSchedule(newLoanAccountId, 3, RepaymentScheduleStatus.DUE, "2027-01-10");
+            long fourth = insertSchedule(newLoanAccountId, 4, RepaymentScheduleStatus.SCHEDULED, "2027-02-10");
+            long second = insertSchedule(newLoanAccountId, 2, RepaymentScheduleStatus.OVERDUE, "2026-12-10");
+            insertSchedule(newLoanAccountId, 1, RepaymentScheduleStatus.PAID, "2026-11-10");
+            long otherLoanAccountId = insertNewLoanAccount("900-000-000102");
+            insertSchedule(otherLoanAccountId, 1, RepaymentScheduleStatus.SCHEDULED, "2026-11-10");
+
+            // when
+            List<RepaymentScheduleJudgmentTargetResponse> result =
+                    repaymentScheduleMapper.findUnfinishedJudgmentTargets(newLoanAccountId);
+
+            // then
+            assertThat(result).extracting(RepaymentScheduleJudgmentTargetResponse::getRepaymentScheduleId)
+                    .containsExactly(second, third, fourth, fifth);
+            RepaymentScheduleJudgmentTargetResponse scheduled = result.get(2);
+            assertThat(scheduled.getLoanAccountId()).isEqualTo(newLoanAccountId);
+            assertThat(scheduled.getRepaymentScheduleStatusId()).isEqualTo(RepaymentScheduleStatus.SCHEDULED);
+            assertThat(scheduled.getScheduledDate()).isEqualTo(LocalDate.of(2027, 2, 10));
+            assertThat(scheduled.getConfirmedAt()).isNull();
+            assertThat(scheduled.getScheduledPrincipal()).isNull();
+            assertThat(scheduled.getScheduledInterest()).isNull();
+            assertThat(scheduled.getPaidPrincipal()).isEqualByComparingTo("0");
+            assertThat(scheduled.getPaidInterest()).isEqualByComparingTo("0");
+        }
+
+        @Test
+        @DisplayName("1회 기한이익상실로 종료·2회 만기 경과로 종료뿐이면 빈 목록이 나온다")
+        void 닫힌_회차만_있으면_빈_목록이다() {
+            // given
+            long newLoanAccountId = insertNewLoanAccount("900-000-000103");
+            insertSchedule(newLoanAccountId, 1, RepaymentScheduleStatus.CLOSED_BY_ACCELERATION, "2026-11-10");
+            insertSchedule(newLoanAccountId, 2, RepaymentScheduleStatus.CLOSED_BY_MATURITY_OVERDUE, "2026-12-10");
+
+            // when
+            List<RepaymentScheduleJudgmentTargetResponse> result =
+                    repaymentScheduleMapper.findUnfinishedJudgmentTargets(newLoanAccountId);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+
+        // setUp 대출은 1~3회를 순서대로 넣어 두었으므로, 넣는 순서를 섞으려고 회차 없는 대출을 새로 만든다
+        private long insertNewLoanAccount(String accountNo) {
+            long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
+                    + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
+                    + "VALUES (?, ?, '2026-10-10', '2027-03-10', 5000000, 1.5, 4.5, 5)", productId, memberId);
+            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
+                    + "loan_status_id, loan_principal_balance, monthly_payment_day) "
+                    + "VALUES (?, ?, ?, 1, 5000000, 10)", contractId, accountId, accountNo);
+        }
+
+        private long insertSchedule(long targetLoanAccountId, int installmentNo, RepaymentScheduleStatus status,
+                                    String scheduledDate) {
+            return insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, "
+                            + "repayment_schedule_status_id, scheduled_date) VALUES (?, ?, ?, ?)",
+                    targetLoanAccountId, installmentNo, status.getId(), scheduledDate);
+        }
+    }
+
+    @Nested
     @DisplayName("확정 내용을 저장할 때")
     class 확정_내용_저장 {
 
