@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 @Mapper
@@ -21,6 +22,9 @@ public interface LoanAccountMapper {
     Optional<BigDecimal> findRemainingDebtTotal(Long loanAccountId);
 
     Optional<LoanAccountDetailResponse> findLoanAccountDetail(Long loanAccountId);
+
+    List<Long> findScheduleJudgmentTargetIds(@Param("afterLoanAccountId") Long afterLoanAccountId,
+                                             @Param("limit") int limit);
 
     int insertLoanAccount(LoanAccountResponse loanAccount);
 
