@@ -1,15 +1,13 @@
 package com.repayment.batch.job;
 
 import com.repayment.batch.listener.DailyClosingJobListener;
-import com.repayment.batch.reader.LoanAccountIdReader;
+import com.repayment.batch.reader.ScheduleJudgmentTargetReader;
 import com.repayment.batch.step.CompleteClosingTasklet;
 import com.repayment.batch.step.FetchBaseRateTasklet;
 import com.repayment.batch.step.StartClosingTasklet;
 import com.repayment.batch.writer.ScheduleJudgmentWriter;
-import com.repayment.domain.loan.mapper.LoanAccountMapper;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
-import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
@@ -25,7 +23,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 @Configuration
 public class DailyClosingJobConfig {
 
-    // chunk 크기 = 커밋 단위. Reader 페이지 크기도 같게 둔다.
+    // chunk 크기 = 커밋 단위
     private static final int CHUNK_SIZE = 100;
 
     @Bean
@@ -59,20 +57,13 @@ public class DailyClosingJobConfig {
 
     @Bean
     public Step judgeScheduleStep(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-                                  LoanAccountIdReader scheduleJudgmentTargetReader,
+                                  ScheduleJudgmentTargetReader scheduleJudgmentTargetReader,
                                   ScheduleJudgmentWriter scheduleJudgmentWriter) {
         return new StepBuilder("judgeScheduleStep", jobRepository)
                 .<Long, Long>chunk(CHUNK_SIZE, transactionManager)
                 .reader(scheduleJudgmentTargetReader)
                 .writer(scheduleJudgmentWriter)
                 .build();
-    }
-
-    // 가장 최근 판정이 완제가 아닌 대출
-    @Bean
-    @StepScope
-    public LoanAccountIdReader scheduleJudgmentTargetReader(LoanAccountMapper loanAccountMapper) {
-        return new LoanAccountIdReader(loanAccountMapper::findScheduleJudgmentTargetIds, CHUNK_SIZE);
     }
 
     @Bean
