@@ -2,7 +2,6 @@ package com.repayment.domain.repayment.service;
 
 import com.repayment.domain.closing.mapper.DailyClosingMapper;
 import com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse;
-import com.repayment.domain.loan.exception.LoanAccountAccessDeniedException;
 import com.repayment.domain.loan.exception.LoanAccountNotFoundException;
 import com.repayment.domain.loan.exception.LoanAlreadyPaidOffException;
 import com.repayment.domain.loan.mapper.LoanAccountMapper;
@@ -37,7 +36,7 @@ public class RepaymentEligibilityService {
     private final RepayableAmountService repayableAmountService;
 
     @Transactional
-    public RepaymentEligibilityResponse check(Long loanAccountId, Long memberId, BigDecimal amount, LocalDate businessDate) {
+    public RepaymentEligibilityResponse check(Long loanAccountId, BigDecimal amount, LocalDate businessDate) {
         // 대출과 상관없는 조건이라, 어차피 거절할 요청이 대출을 잠그지 않도록 먼저 본다.
         boolean closingCompleted = dailyClosingMapper.findStatusByBusinessDate(businessDate)
                 .filter(status -> status == DailyClosingStatus.COMPLETED)
@@ -48,10 +47,6 @@ public class RepaymentEligibilityService {
 
         RepaymentLoanAccountResponse loanAccount = loanAccountMapper.findRepaymentLoanAccountForUpdate(loanAccountId)
                 .orElseThrow(() -> new LoanAccountNotFoundException(loanAccountId));
-        // 남의 대출이 완제인지, 갚을 금액이 얼마인지 알 수 없도록 본인 확인을 먼저 한다.
-        if (!loanAccount.getMemberId().equals(memberId)) {
-            throw new LoanAccountAccessDeniedException(loanAccountId, memberId);
-        }
         if (!isValidAmount(amount)) {
             throw new InvalidRepaymentAmountException(amount);
         }

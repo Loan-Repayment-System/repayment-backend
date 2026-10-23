@@ -2,19 +2,22 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.repayment.domain.loan.mapper.LoanAccountMapper">
 
-    <!--
-        같은 대출의 다른 상환은 이 트랜잭션이 끝날 때까지 기다린다.
-        회원은 loan_contract에 있어 JOIN한다. JOIN한 loan_contract 행도 함께 잠기지만 대출당 1행이다.
-    -->
+    <!-- 같은 대출의 다른 상환은 이 트랜잭션이 끝날 때까지 기다린다. -->
     <select id="findRepaymentLoanAccountForUpdate"
             resultType="com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse">
-        SELECT la.loan_account_id,
-               lc.member_id,
-               la.repayment_account_id
-        FROM loan_account la
-        JOIN loan_contract lc ON lc.loan_contract_id = la.loan_contract_id
-        WHERE la.loan_account_id = #{loanAccountId}
+        SELECT loan_account_id,
+               repayment_account_id
+        FROM loan_account
+        WHERE loan_account_id = #{loanAccountId}
         FOR UPDATE
+    </select>
+
+    <select id="findLoanAccountStatus"
+            resultType="com.repayment.domain.loan.dto.response.LoanAccountStatusResponse">
+        SELECT loan_principal_balance,
+               loan_status_id
+        FROM loan_account
+        WHERE loan_account_id = #{loanAccountId}
     </select>
 
     <!--
