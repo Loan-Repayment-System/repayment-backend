@@ -6,6 +6,7 @@ import com.repayment.batch.step.FetchBaseRateTasklet;
 import com.repayment.batch.step.StartClosingTasklet;
 import com.repayment.batch.writer.LoanStatusJudgmentWriter;
 import com.repayment.batch.writer.ScheduleJudgmentWriter;
+import com.repayment.batch.writer.StatusChangeWriter;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -29,7 +30,8 @@ public class DailyClosingJobConfig {
 
     @Bean
     public Job dailyClosingJob(JobRepository jobRepository, Step startClosingStep, Step fetchBaseRateStep,
-                               Step judgeScheduleStep, Step judgeLoanStatusStep, Step completeClosingStep,
+                               Step judgeScheduleStep, Step judgeLoanStatusStep, Step processStatusChangeStep,
+                               Step completeClosingStep,
                                DailyClosingJobListener dailyClosingJobListener) {
         return new JobBuilder("dailyClosingJob", jobRepository)
                 .listener(dailyClosingJobListener)
@@ -37,6 +39,7 @@ public class DailyClosingJobConfig {
                 .next(fetchBaseRateStep)
                 .next(judgeScheduleStep)
                 .next(judgeLoanStatusStep)
+                .next(processStatusChangeStep)
                 .next(completeClosingStep)
                 .build();
     }
@@ -76,6 +79,17 @@ public class DailyClosingJobConfig {
                 .<Long, Long>chunk(CHUNK_SIZE, transactionManager)
                 .reader(loanStatusJudgmentTargetReader)
                 .writer(loanStatusJudgmentWriter)
+                .build();
+    }
+
+    @Bean
+    public Step processStatusChangeStep(JobRepository jobRepository, PlatformTransactionManager transactionManager,
+                                        JdbcPagingItemReader<Long> statusChangeTargetReader,
+                                        StatusChangeWriter statusChangeWriter) {
+        return new StepBuilder("processStatusChangeStep", jobRepository)
+                .<Long, Long>chunk(CHUNK_SIZE, transactionManager)
+                .reader(statusChangeTargetReader)
+                .writer(statusChangeWriter)
                 .build();
     }
 

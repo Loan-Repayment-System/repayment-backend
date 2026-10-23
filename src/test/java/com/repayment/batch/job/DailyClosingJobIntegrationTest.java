@@ -3,6 +3,7 @@ package com.repayment.batch.job;
 import com.repayment.TestcontainersConfig;
 import com.repayment.domain.baserate.exception.BaseRateFetchFailedException;
 import com.repayment.domain.baserate.service.BaseRateService;
+import com.repayment.domain.loan.service.LoanStatusChangeService;
 import com.repayment.domain.loan.service.LoanStatusJudgmentService;
 import com.repayment.domain.schedule.service.RepaymentScheduleJudgmentService;
 import org.junit.jupiter.api.AfterEach;
@@ -70,6 +71,9 @@ class DailyClosingJobIntegrationTest {
     @MockitoBean
     private LoanStatusJudgmentService loanStatusJudgmentService;
 
+    @MockitoBean
+    private LoanStatusChangeService loanStatusChangeService;
+
     @AfterEach
     void tearDown() {
         jdbcTemplate.update("DELETE FROM daily_closing");
@@ -86,7 +90,7 @@ class DailyClosingJobIntegrationTest {
     class 시작할_수_있음 {
 
         @Test
-        @DisplayName("대출이 없으면 시작·기준금리 조회·스케줄 판정·상태 판정·완료 Step이 차례로 끝나고 10/17 행이 완료로 남는다")
+        @DisplayName("대출이 없으면 시작·기준금리 조회·스케줄 판정·상태 판정·상태 변화 처리·완료 Step이 차례로 끝나고 10/17 행이 완료로 남는다")
         void 시작부터_완료까지_이어진다() throws Exception {
             // given
             insertClosing(YESTERDAY, COMPLETED);
@@ -104,6 +108,7 @@ class DailyClosingJobIntegrationTest {
                             tuple("fetchBaseRateStep", BatchStatus.COMPLETED),
                             tuple("judgeScheduleStep", BatchStatus.COMPLETED),
                             tuple("judgeLoanStatusStep", BatchStatus.COMPLETED),
+                            tuple("processStatusChangeStep", BatchStatus.COMPLETED),
                             tuple("completeClosingStep", BatchStatus.COMPLETED));
             Map<String, Object> row = findClosing(TODAY);
             assertThat(row.get("daily_closing_status_id")).isEqualTo(COMPLETED);
@@ -129,6 +134,27 @@ class DailyClosingJobIntegrationTest {
             then(repaymentScheduleJudgmentService).should(times(1)).judgeLoan(anyLong(), any());
             then(loanStatusJudgmentService).should(times(1)).judge(target, TODAY);
             then(loanStatusJudgmentService).should(times(1)).judge(anyLong(), any());
+        }
+
+        // 판정 서비스가 목이라 판정 행이 생기지 않으므로, 오늘 판정 행을 미리 넣어 다시 실행하는 상황을 만든다
+        @Test
+        @DisplayName("대출에 10/17 판정이 이미 있으면 상태 판정은 건너뛰고 스케줄 판정과 상태 변화 처리만 10/17로 1번씩 한다")
+        void 다시_실행하면_상태_판정은_건너뛰고_상태_변화를_처리한다() throws Exception {
+            // given
+            insertClosing(YESTERDAY, COMPLETED);
+            long judgedToday = insertLoanAccount("900-000-000001");
+            jdbcTemplate.update("INSERT INTO loan_status_judgment (loan_account_id, business_date, "
+                    + "loan_judgment_status_id) VALUES (?, '2026-10-17', 21)", judgedToday);
+
+            // when
+            JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters(TODAY));
+
+            // then
+            assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+            then(repaymentScheduleJudgmentService).should(times(1)).judgeLoan(judgedToday, TODAY);
+            then(loanStatusJudgmentService).shouldHaveNoInteractions();
+            then(loanStatusChangeService).should(times(1)).process(judgedToday, TODAY);
+            then(loanStatusChangeService).should(times(1)).process(anyLong(), any());
         }
 
         @Test

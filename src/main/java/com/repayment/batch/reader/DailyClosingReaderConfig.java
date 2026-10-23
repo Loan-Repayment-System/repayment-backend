@@ -75,4 +75,25 @@ public class DailyClosingReaderConfig {
                 .rowMapper(new SingleColumnRowMapper<>(Long.class))
                 .build();
     }
+
+    // 같은 기준일 판정 행이 있는 대출. 다시 실행하면 이미 처리한 대출도 읽지만, 처리 모듈이 한 일을 건너뛴다.
+    @Bean
+    @StepScope
+    public JdbcPagingItemReader<Long> statusChangeTargetReader(
+            DataSource dataSource, @Value("#{jobParameters['businessDate']}") LocalDate businessDate) {
+        return new JdbcPagingItemReaderBuilder<Long>()
+                .name("statusChangeTargetReader")
+                .dataSource(dataSource)
+                .pageSize(PAGE_SIZE)
+                .selectClause("SELECT la.loan_account_id")
+                .fromClause("FROM loan_account la")
+                .whereClause("WHERE EXISTS (SELECT 1"
+                        + " FROM loan_status_judgment same_day"
+                        + " WHERE same_day.loan_account_id = la.loan_account_id"
+                        + " AND same_day.business_date = :businessDate)")
+                .sortKeys(Map.of("loan_account_id", Order.ASCENDING))
+                .parameterValues(Map.of("businessDate", businessDate))
+                .rowMapper(new SingleColumnRowMapper<>(Long.class))
+                .build();
+    }
 }
