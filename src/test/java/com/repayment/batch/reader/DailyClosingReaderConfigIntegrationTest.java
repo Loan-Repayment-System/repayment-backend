@@ -118,6 +118,32 @@ class DailyClosingReaderConfigIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("상태 변화 처리 대상을 기준일 10/17로 읽을 때")
+    class 상태_변화_처리_대상 {
+
+        @Test
+        @DisplayName("A 판정 없음, B 10/16 0 정상만, C 10/17 21 연체, D 10/17 2 완제가 있으면 C·D 순서로 읽는다")
+        void 같은_기준일에_판정한_대출만_읽는다() throws Exception {
+            // given
+            insertLoanAccount(1);
+            long normal = insertLoanAccount(2);
+            insertJudgment(normal, "2026-10-16", 0);
+            long overdue = insertLoanAccount(3);
+            insertJudgment(overdue, "2026-10-16", 0);
+            insertJudgment(overdue, "2026-10-17", 21);
+            long paidOff = insertLoanAccount(4);
+            insertJudgment(paidOff, "2026-10-16", 0);
+            insertJudgment(paidOff, "2026-10-17", 2);
+
+            // when
+            List<Long> result = readAll(new DailyClosingReaderConfig().statusChangeTargetReader(dataSource, TODAY));
+
+            // then
+            assertThat(result).containsExactly(overdue, paidOff);
+        }
+    }
+
     private List<Long> readAll(JdbcPagingItemReader<Long> reader) throws Exception {
         reader.afterPropertiesSet();
         reader.open(new ExecutionContext());
