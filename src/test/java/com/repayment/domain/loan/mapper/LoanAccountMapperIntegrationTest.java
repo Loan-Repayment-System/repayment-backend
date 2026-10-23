@@ -1,10 +1,15 @@
 package com.repayment.domain.loan.mapper;
 
 import com.repayment.TestcontainersConfig;
+import com.repayment.domain.loan.dto.response.LoanAccountDetailResponse;
 import com.repayment.domain.loan.dto.response.LoanAccountResponse;
 import com.repayment.domain.loan.dto.response.LoanAccountStatusResponse;
+import com.repayment.domain.loan.dto.response.LoanBasicInfoResponse;
 import com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse;
+import com.repayment.global.code.InterestType;
+import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.LoanStatus;
+import com.repayment.global.code.RepaymentMethod;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -17,6 +22,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
@@ -233,6 +239,80 @@ class LoanAccountMapperIntegrationTest {
                 assertThat(loanAccount.getLoanPrincipalBalance()).isEqualByComparingTo("9000000");
                 assertThat(loanAccount.getLoanStatusId()).isEqualTo(LoanStatus.OVERDUE);
             });
+        }
+    }
+
+    @Nested
+    @DisplayName("대출 현황의 기본 정보와 현재 상태를 조회할 때")
+    class 대출_현황_기본_정보_조회 {
+
+        @Test
+        @DisplayName("판정이 0 정상 → 21 1회 연체 순서로 있으면 계약·상품·회원의 12칸과 연체 상태, 최근 판정 21을 가져온다")
+        void 기본_정보와_최근_판정을_가져온다() {
+            // given
+            long loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
+                    + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                    + "VALUES (?, ?, '900-000-000001', ?, 9000000, 10, 0)", contractId, accountId, OVERDUE_STATUS);
+            insertJudgment(loanAccountId, "2026-10-10", 0);
+            insertJudgment(loanAccountId, "2026-10-11", 21);
+
+            // when
+            Optional<LoanAccountDetailResponse> result = loanAccountMapper.findLoanAccountDetail(loanAccountId);
+
+            // then
+            assertThat(result).hasValueSatisfying(detail -> {
+                LoanBasicInfoResponse loan = detail.getLoan();
+                assertThat(loan.getLoanAccountId()).isEqualTo(loanAccountId);
+                assertThat(loan.getMemberName()).isEqualTo("테스트");
+                assertThat(loan.getProductName()).isEqualTo("테스트 상품");
+                assertThat(loan.getInterestType()).isEqualTo(InterestType.FIXED);
+                assertThat(loan.getRepaymentMethod()).isEqualTo(RepaymentMethod.EQUAL_PRINCIPAL);
+                assertThat(loan.getContractDate()).isEqualTo(LocalDate.of(2026, 1, 10));
+                assertThat(loan.getMaturityDate()).isEqualTo(LocalDate.of(2027, 1, 10));
+                assertThat(loan.getContractPrincipal()).isEqualByComparingTo("10000000");
+                assertThat(loan.getLoanPrincipalBalance()).isEqualByComparingTo("9000000");
+                assertThat(loan.getContractBaseRate()).isEqualByComparingTo("4.5");
+                assertThat(loan.getContractAdditionalRate()).isEqualByComparingTo("1.5");
+                assertThat(loan.getTotalInstallments()).isEqualTo(12);
+                assertThat(detail.getStatus().getLoanStatus()).isEqualTo(LoanStatus.OVERDUE);
+                assertThat(detail.getStatus().getLatestJudgment()).isEqualTo(LoanJudgmentStatus.INSTALLMENT_OVERDUE);
+                assertThat(detail.getInstallments()).isNull();
+                assertThat(detail.getRepayableAmount()).isNull();
+            });
+        }
+
+        @Test
+        @DisplayName("판정 기록이 없으면 최근 판정은 null이다")
+        void 판정이_없으면_최근_판정은_null이다() {
+            // given
+            long loanAccountId = insertLoanAccount("10000000");
+
+            // when
+            Optional<LoanAccountDetailResponse> result = loanAccountMapper.findLoanAccountDetail(loanAccountId);
+
+            // then
+            assertThat(result).hasValueSatisfying(detail -> {
+                assertThat(detail.getStatus().getLoanStatus()).isEqualTo(LoanStatus.NORMAL);
+                assertThat(detail.getStatus().getLatestJudgment()).isNull();
+            });
+        }
+
+        @Test
+        @DisplayName("없는 대출 ID면 빈 값이다")
+        void 없는_대출은_빈_값이다() {
+            // given
+            long missingLoanAccountId = insertLoanAccount("0") + 1000;
+
+            // when
+            Optional<LoanAccountDetailResponse> result = loanAccountMapper.findLoanAccountDetail(missingLoanAccountId);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+
+        private void insertJudgment(long loanAccountId, String businessDate, int loanJudgmentStatusId) {
+            insert("INSERT INTO loan_status_judgment (loan_account_id, business_date, loan_judgment_status_id) "
+                    + "VALUES (?, ?, ?)", loanAccountId, businessDate, loanJudgmentStatusId);
         }
     }
 

@@ -121,4 +121,50 @@
         WHERE loan_account_id = #{loanAccountId}
           AND repayment_schedule_status_id &lt;&gt; #{paid}
     </update>
+
+    <resultMap id="installmentDetail" type="com.repayment.domain.schedule.dto.response.InstallmentDetailResponse">
+        <id property="installmentNo" column="installment_no"/>
+        <result property="status" column="repayment_schedule_status_id"/>
+        <result property="scheduledDate" column="scheduled_date"/>
+        <result property="scheduledPrincipal" column="scheduled_principal"/>
+        <result property="scheduledInterest" column="scheduled_interest"/>
+        <result property="appliedBaseRate" column="applied_base_rate"/>
+        <result property="appliedAdditionalRate" column="applied_additional_rate"/>
+        <result property="confirmedAt" column="confirmed_at"/>
+        <result property="paidPrincipal" column="paid_principal"/>
+        <result property="paidInterest" column="paid_interest"/>
+        <collection property="delinquencyCharges"
+                    ofType="com.repayment.domain.delinquency.dto.response.InstallmentDelinquencyChargeDetailResponse">
+            <id property="chargeDate" column="charge_date"/>
+            <result property="delinquencyTargetAmount" column="delinquency_target_amount"/>
+            <result property="delinquencyRate" column="delinquency_rate"/>
+            <result property="delinquencyCharge" column="delinquency_charge"/>
+            <result property="paidDelinquencyCharge" column="paid_delinquency_charge"/>
+            <result property="delinquencyStatus" column="delinquency_status_id"/>
+        </collection>
+    </resultMap>
+
+    <!-- 연체금이 없는 회차도 빠지지 않게 LEFT JOIN한다. -->
+    <select id="findInstallmentDetails" resultMap="installmentDetail">
+        SELECT rs.installment_no,
+               rs.repayment_schedule_status_id,
+               rs.scheduled_date,
+               rs.scheduled_principal,
+               rs.scheduled_interest,
+               rs.applied_base_rate,
+               rs.applied_additional_rate,
+               rs.confirmed_at,
+               rs.paid_principal,
+               rs.paid_interest,
+               idc.charge_date,
+               idc.delinquency_target_amount,
+               idc.delinquency_rate,
+               idc.delinquency_charge,
+               idc.paid_delinquency_charge,
+               idc.delinquency_status_id
+        FROM repayment_schedule rs
+        LEFT JOIN installment_delinquency_charge idc ON idc.repayment_schedule_id = rs.repayment_schedule_id
+        WHERE rs.loan_account_id = #{loanAccountId}
+        ORDER BY rs.installment_no, idc.charge_date
+    </select>
 </mapper>
