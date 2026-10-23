@@ -31,7 +31,6 @@ public enum ErrorCode {
     // 대출
     LOAN_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "대출을 찾을 수 없습니다."),
     LOAN_STATUS_JUDGMENT_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "기준일의 대출 상태 판정을 찾지 못했습니다."),
-    LOAN_ACCOUNT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "본인의 대출이 아닙니다."),
     LOAN_ALREADY_PAID_OFF(HttpStatus.UNPROCESSABLE_ENTITY, "이미 완제된 대출입니다."),
     INVALID_CONTRACT_PRINCIPAL(HttpStatus.BAD_REQUEST, "약정금액은 1원 이상 원 단위로 입력해 주세요."),
     INVALID_TOTAL_INSTALLMENTS(HttpStatus.BAD_REQUEST, "회차 수는 1 이상으로 입력해 주세요."),

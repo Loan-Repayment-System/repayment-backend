@@ -2,7 +2,6 @@ package com.repayment.domain.repayment.service;
 
 import com.repayment.domain.closing.mapper.DailyClosingMapper;
 import com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse;
-import com.repayment.domain.loan.exception.LoanAccountAccessDeniedException;
 import com.repayment.domain.loan.exception.LoanAccountNotFoundException;
 import com.repayment.domain.loan.exception.LoanAlreadyPaidOffException;
 import com.repayment.domain.loan.mapper.LoanAccountMapper;
@@ -40,7 +39,6 @@ import static org.mockito.BDDMockito.then;
 class RepaymentEligibilityServiceTest {
 
     private static final long LOAN_ACCOUNT_ID = 10L;
-    private static final long MEMBER_ID = 1L;
     private static final long REPAYMENT_ACCOUNT_ID = 30L;
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 16);
 
@@ -70,7 +68,7 @@ class RepaymentEligibilityServiceTest {
             given(dailyClosingMapper.findStatusByBusinessDate(TODAY)).willReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(RepaymentUnavailableDuringClosingException.class);
             then(loanAccountMapper).shouldHaveNoInteractions();
         }
@@ -82,7 +80,7 @@ class RepaymentEligibilityServiceTest {
             givenDailyClosing(DailyClosingStatus.IN_PROGRESS);
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(RepaymentUnavailableDuringClosingException.class);
             then(loanAccountMapper).shouldHaveNoInteractions();
         }
@@ -94,7 +92,7 @@ class RepaymentEligibilityServiceTest {
             givenDailyClosing(DailyClosingStatus.FAILED);
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(RepaymentUnavailableDuringClosingException.class);
             then(loanAccountMapper).shouldHaveNoInteractions();
         }
@@ -110,7 +108,7 @@ class RepaymentEligibilityServiceTest {
 
             // when
             RepaymentEligibilityResponse result =
-                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY);
+                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000"), TODAY);
 
             // then
             assertThat(result.getRepayableAmount().getTotalAmount()).isEqualByComparingTo("5000");
@@ -130,23 +128,8 @@ class RepaymentEligibilityServiceTest {
             given(loanAccountMapper.findRepaymentLoanAccountForUpdate(LOAN_ACCOUNT_ID)).willReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(LoanAccountNotFoundException.class);
-        }
-
-        // CUST-01
-        @Test
-        @DisplayName("대출 주인이 회원 1인데 회원 2가 요청하면 본인 대출이 아니라고 거절하고 판정·갚을 금액을 조회하지 않는다")
-        void 남의_대출은_다른_검사보다_먼저_거절한다() {
-            // given
-            givenDailyClosing(DailyClosingStatus.COMPLETED);
-            givenLoanAccount();
-
-            // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, 2L, new BigDecimal("1000"), TODAY))
-                    .isInstanceOf(LoanAccountAccessDeniedException.class);
-            then(loanStatusJudgmentMapper).shouldHaveNoInteractions();
-            then(repayableAmountService).shouldHaveNoInteractions();
         }
     }
 
@@ -163,7 +146,7 @@ class RepaymentEligibilityServiceTest {
             givenLoanAccount();
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("0"), TODAY))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("0"), TODAY))
                     .isInstanceOf(InvalidRepaymentAmountException.class);
         }
 
@@ -176,7 +159,7 @@ class RepaymentEligibilityServiceTest {
             givenLoanAccount();
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("-1000"), TODAY))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("-1000"), TODAY))
                     .isInstanceOf(InvalidRepaymentAmountException.class);
         }
 
@@ -189,7 +172,7 @@ class RepaymentEligibilityServiceTest {
             givenLoanAccount();
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000.5"), TODAY))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000.5"), TODAY))
                     .isInstanceOf(InvalidRepaymentAmountException.class);
         }
 
@@ -204,7 +187,7 @@ class RepaymentEligibilityServiceTest {
 
             // when
             RepaymentEligibilityResponse result =
-                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000.00"), TODAY);
+                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000.00"), TODAY);
 
             // then
             assertThat(result.getRepayableAmount().getTotalAmount()).isEqualByComparingTo("5000");
@@ -225,7 +208,7 @@ class RepaymentEligibilityServiceTest {
             givenLatestJudgment(LoanJudgmentStatus.PAID_OFF);
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(LoanAlreadyPaidOffException.class);
             then(repayableAmountService).shouldHaveNoInteractions();
         }
@@ -241,7 +224,7 @@ class RepaymentEligibilityServiceTest {
 
             // when
             RepaymentEligibilityResponse result =
-                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY);
+                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000"), TODAY);
 
             // then
             assertThat(result.getLatestJudgment()).isEqualTo(LoanJudgmentStatus.NORMAL);
@@ -264,7 +247,7 @@ class RepaymentEligibilityServiceTest {
             givenRepayableAmount(LoanJudgmentStatus.NORMAL, "0");
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1000"), TODAY))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(NothingToRepayException.class);
         }
 
@@ -279,7 +262,7 @@ class RepaymentEligibilityServiceTest {
             givenRepayableAmount(LoanJudgmentStatus.NORMAL, "5000");
 
             // when & then
-            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("5001"), TODAY))
+            assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("5001"), TODAY))
                     .isInstanceOfSatisfying(RepaymentExceedsRepayableAmountException.class,
                             e -> assertThat((BigDecimal) e.getData()).isEqualByComparingTo("5000"));
         }
@@ -295,7 +278,7 @@ class RepaymentEligibilityServiceTest {
 
             // when
             RepaymentEligibilityResponse result =
-                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("5000"), TODAY);
+                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("5000"), TODAY);
 
             // then
             assertThat(result.getRepayableAmount().getTotalAmount()).isEqualByComparingTo("5000");
@@ -314,7 +297,7 @@ class RepaymentEligibilityServiceTest {
 
             // when
             RepaymentEligibilityResponse result =
-                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, MEMBER_ID, new BigDecimal("1"), TODAY);
+                    repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1"), TODAY);
 
             // then
             assertThat(result.getRepaymentAccountId()).isEqualTo(REPAYMENT_ACCOUNT_ID);
@@ -329,7 +312,7 @@ class RepaymentEligibilityServiceTest {
 
     private void givenLoanAccount() {
         given(loanAccountMapper.findRepaymentLoanAccountForUpdate(LOAN_ACCOUNT_ID))
-                .willReturn(Optional.of(new RepaymentLoanAccountResponse(LOAN_ACCOUNT_ID, MEMBER_ID, REPAYMENT_ACCOUNT_ID)));
+                .willReturn(Optional.of(new RepaymentLoanAccountResponse(LOAN_ACCOUNT_ID, REPAYMENT_ACCOUNT_ID)));
     }
 
     private void givenLatestJudgment(LoanJudgmentStatus status) {

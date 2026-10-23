@@ -2,6 +2,7 @@ package com.repayment.domain.loan.mapper;
 
 import com.repayment.TestcontainersConfig;
 import com.repayment.domain.loan.dto.response.LoanAccountResponse;
+import com.repayment.domain.loan.dto.response.LoanAccountStatusResponse;
 import com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse;
 import com.repayment.global.code.LoanStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -182,8 +183,8 @@ class LoanAccountMapperIntegrationTest {
     class 상환할_대출_잠금_조회 {
 
         @Test
-        @DisplayName("대출이 있으면 그 대출 id와 계약의 회원 id, 상환 계좌 id를 가져온다")
-        void 계약의_회원과_상환_계좌를_가져온다() {
+        @DisplayName("대출이 있으면 그 대출 id와 상환 계좌 id를 가져온다")
+        void 상환_계좌를_가져온다() {
             // given
             long loanAccountId = insertLoanAccount("10000000");
 
@@ -193,7 +194,6 @@ class LoanAccountMapperIntegrationTest {
             // then
             assertThat(result).hasValueSatisfying(loanAccount -> {
                 assertThat(loanAccount.getLoanAccountId()).isEqualTo(loanAccountId);
-                assertThat(loanAccount.getMemberId()).isEqualTo(memberId);
                 assertThat(loanAccount.getRepaymentAccountId()).isEqualTo(accountId);
             });
         }
@@ -210,6 +210,29 @@ class LoanAccountMapperIntegrationTest {
 
             // then
             assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("상환을 마친 대출의 원금잔액과 상태를 조회할 때")
+    class 원금잔액과_상태_조회 {
+
+        @Test
+        @DisplayName("원금잔액 9,000,000원, 상태 연체(2)인 대출이면 9,000,000원과 OVERDUE를 가져온다")
+        void 원금잔액과_상태를_가져온다() {
+            // given
+            long loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
+                    + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                    + "VALUES (?, ?, '900-000-000001', ?, 9000000, 10, 0)", contractId, accountId, OVERDUE_STATUS);
+
+            // when
+            Optional<LoanAccountStatusResponse> result = loanAccountMapper.findLoanAccountStatus(loanAccountId);
+
+            // then
+            assertThat(result).hasValueSatisfying(loanAccount -> {
+                assertThat(loanAccount.getLoanPrincipalBalance()).isEqualByComparingTo("9000000");
+                assertThat(loanAccount.getLoanStatusId()).isEqualTo(LoanStatus.OVERDUE);
+            });
         }
     }
 
