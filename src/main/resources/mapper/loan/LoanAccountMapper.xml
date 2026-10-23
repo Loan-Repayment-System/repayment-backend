@@ -138,23 +138,4 @@
         JOIN member m ON m.member_id = lc.member_id
         WHERE la.loan_account_id = #{loanAccountId}
     </select>
-
-    <!--
-        일마감 스케줄 판정 대상. 가장 최근 판정(가장 큰 loan_status_judgment_id)이 완제가 아닌 대출이고,
-        판정이 없는 새 대출은 정상으로 본다. 마지막으로 읽은 ID 다음부터 읽는다(keyset 페이징).
-    -->
-    <select id="findScheduleJudgmentTargetIds" resultType="long">
-        <bind name="normal" value="@com.repayment.global.code.LoanJudgmentStatus@NORMAL"/>
-        <bind name="paidOff" value="@com.repayment.global.code.LoanJudgmentStatus@PAID_OFF"/>
-        SELECT la.loan_account_id
-        FROM loan_account la
-        WHERE la.loan_account_id &gt; #{afterLoanAccountId}
-          AND COALESCE((SELECT lsj.loan_judgment_status_id
-                        FROM loan_status_judgment lsj
-                        WHERE lsj.loan_account_id = la.loan_account_id
-                        ORDER BY lsj.loan_status_judgment_id DESC
-                        LIMIT 1), #{normal}) &lt;&gt; #{paidOff}
-        ORDER BY la.loan_account_id
-        LIMIT #{limit}
-    </select>
 </mapper>

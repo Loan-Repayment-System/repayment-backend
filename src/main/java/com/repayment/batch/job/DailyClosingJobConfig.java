@@ -1,7 +1,6 @@
 package com.repayment.batch.job;
 
 import com.repayment.batch.listener.DailyClosingJobListener;
-import com.repayment.batch.reader.ScheduleJudgmentTargetReader;
 import com.repayment.batch.step.CompleteClosingTasklet;
 import com.repayment.batch.step.FetchBaseRateTasklet;
 import com.repayment.batch.step.StartClosingTasklet;
@@ -11,6 +10,7 @@ import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.database.JdbcPagingItemReader;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -57,7 +57,7 @@ public class DailyClosingJobConfig {
 
     @Bean
     public Step judgeScheduleStep(JobRepository jobRepository, PlatformTransactionManager transactionManager,
-                                  ScheduleJudgmentTargetReader scheduleJudgmentTargetReader,
+                                  JdbcPagingItemReader<Long> scheduleJudgmentTargetReader,
                                   ScheduleJudgmentWriter scheduleJudgmentWriter) {
         return new StepBuilder("judgeScheduleStep", jobRepository)
                 .<Long, Long>chunk(CHUNK_SIZE, transactionManager)

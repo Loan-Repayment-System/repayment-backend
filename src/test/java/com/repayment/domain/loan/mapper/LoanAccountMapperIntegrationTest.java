@@ -24,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -309,67 +308,6 @@ class LoanAccountMapperIntegrationTest {
 
             // then
             assertThat(result).isEmpty();
-        }
-
-        private void insertJudgment(long loanAccountId, String businessDate, int loanJudgmentStatusId) {
-            insert("INSERT INTO loan_status_judgment (loan_account_id, business_date, loan_judgment_status_id) "
-                    + "VALUES (?, ?, ?)", loanAccountId, businessDate, loanJudgmentStatusId);
-        }
-    }
-
-    @Nested
-    @DisplayName("일마감 스케줄 판정 대상을 조회할 때")
-    class 스케줄_판정_대상 {
-
-        private long noJudgment;
-        private long normal;
-        private long paidOff;
-        private long overdue;
-
-        // A 판정 없음, B 최근 판정 0 정상, C 0 정상 → 2 완제, D 최근 판정 21 분할상환 1회 연체
-        @BeforeEach
-        void setUp() {
-            noJudgment = insertLoanAccountOf("900-000-000011");
-            normal = insertLoanAccountOf("900-000-000012");
-            insertJudgment(normal, "2026-10-16", 0);
-            paidOff = insertLoanAccountOf("900-000-000013");
-            insertJudgment(paidOff, "2026-10-15", 0);
-            insertJudgment(paidOff, "2026-10-16", 2);
-            overdue = insertLoanAccountOf("900-000-000014");
-            insertJudgment(overdue, "2026-10-16", 21);
-        }
-
-        @Test
-        @DisplayName("최근 판정이 완제인 대출만 빼고, 판정 없는 새 대출을 포함해 A·B·D를 ID 순으로 가져온다")
-        void 최근_판정이_완제인_대출만_뺀다() {
-            // when
-            List<Long> result = loanAccountMapper.findScheduleJudgmentTargetIds(0L, 10);
-
-            // then
-            assertThat(result).containsExactly(noJudgment, normal, overdue);
-        }
-
-        @Test
-        @DisplayName("마지막으로 읽은 ID가 A이고 개수가 1이면 B만 가져온다")
-        void 마지막_ID_다음부터_개수만큼_가져온다() {
-            // when
-            List<Long> result = loanAccountMapper.findScheduleJudgmentTargetIds(noJudgment, 1);
-
-            // then
-            assertThat(result).containsExactly(normal);
-        }
-
-        // loan_account는 계약당 1개라 대출마다 계약을 만든다
-        private long insertLoanAccountOf(String accountNo) {
-            long loanContractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, "
-                    + "maturity_date, contract_principal, contract_additional_rate, contract_base_rate, "
-                    + "total_installments) "
-                    + "SELECT loan_product_id, member_id, contract_date, maturity_date, contract_principal, "
-                    + "contract_additional_rate, contract_base_rate, total_installments "
-                    + "FROM loan_contract WHERE loan_contract_id = ?", contractId);
-            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, loan_status_id, "
-                    + "loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                    + "VALUES (?, ?, ?, 1, 10000000, 10, 0)", loanContractId, accountId, accountNo);
         }
 
         private void insertJudgment(long loanAccountId, String businessDate, int loanJudgmentStatusId) {
