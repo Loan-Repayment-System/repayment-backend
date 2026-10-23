@@ -90,4 +90,52 @@
         SET loan_status_id = #{loanStatus}
         WHERE loan_account_id = #{loanAccountId}
     </update>
+
+    <resultMap id="loanAccountDetail" type="com.repayment.domain.loan.dto.response.LoanAccountDetailResponse">
+        <association property="loan" javaType="com.repayment.domain.loan.dto.response.LoanBasicInfoResponse">
+            <id property="loanAccountId" column="loan_account_id"/>
+            <result property="memberName" column="member_name"/>
+            <result property="productName" column="product_name"/>
+            <result property="interestType" column="interest_type_id"/>
+            <result property="repaymentMethod" column="repayment_method_id"/>
+            <result property="contractDate" column="contract_date"/>
+            <result property="maturityDate" column="maturity_date"/>
+            <result property="contractPrincipal" column="contract_principal"/>
+            <result property="loanPrincipalBalance" column="loan_principal_balance"/>
+            <result property="contractBaseRate" column="contract_base_rate"/>
+            <result property="contractAdditionalRate" column="contract_additional_rate"/>
+            <result property="totalInstallments" column="total_installments"/>
+        </association>
+        <association property="status" javaType="com.repayment.domain.loan.dto.response.LoanCurrentStatusResponse">
+            <result property="loanStatus" column="loan_status_id"/>
+            <result property="latestJudgment" column="latest_judgment"/>
+        </association>
+    </resultMap>
+
+    <!-- loan·status만 채운다. 최근 판정은 가장 큰 id의 판정이고, 없으면 NULL이다. -->
+    <select id="findLoanAccountDetail" resultMap="loanAccountDetail">
+        SELECT la.loan_account_id,
+               m.name AS member_name,
+               lp.name AS product_name,
+               lp.interest_type_id,
+               lp.repayment_method_id,
+               lc.contract_date,
+               lc.maturity_date,
+               lc.contract_principal,
+               la.loan_principal_balance,
+               lc.contract_base_rate,
+               lc.contract_additional_rate,
+               lc.total_installments,
+               la.loan_status_id,
+               (SELECT j.loan_judgment_status_id
+                FROM loan_status_judgment j
+                WHERE j.loan_account_id = la.loan_account_id
+                ORDER BY j.loan_status_judgment_id DESC
+                LIMIT 1) AS latest_judgment
+        FROM loan_account la
+        JOIN loan_contract lc ON lc.loan_contract_id = la.loan_contract_id
+        JOIN loan_product lp ON lp.loan_product_id = lc.loan_product_id
+        JOIN member m ON m.member_id = lc.member_id
+        WHERE la.loan_account_id = #{loanAccountId}
+    </select>
 </mapper>

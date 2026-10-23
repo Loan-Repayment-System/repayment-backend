@@ -1,11 +1,13 @@
 package com.repayment.domain.maturity.mapper;
 
 import com.repayment.domain.maturity.dto.response.LoanMaturityOverdueCarryOverResponse;
+import com.repayment.domain.maturity.dto.response.LoanMaturityOverdueDetailResponse;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Optional;
 
 @Mapper
 public interface LoanMaturityOverdueMapper {
@@ -13,6 +15,8 @@ public interface LoanMaturityOverdueMapper {
     boolean existsByLoanAccountId(Long loanAccountId);
 
     LoanMaturityOverdueCarryOverResponse findCarryOver(Long loanAccountId);
+
+    Optional<LoanMaturityOverdueDetailResponse> findMaturityOverdueDetail(Long loanAccountId);
 
     int insertMaturityOverdue(@Param("loanAccountId") Long loanAccountId,
                               @Param("convertedDate") LocalDate convertedDate,

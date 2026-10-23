@@ -2,6 +2,9 @@ package com.repayment.domain.maturity.mapper;
 
 import com.repayment.TestcontainersConfig;
 import com.repayment.domain.maturity.dto.response.LoanMaturityOverdueCarryOverResponse;
+import com.repayment.domain.maturity.dto.response.LoanMaturityOverdueDetailResponse;
+import com.repayment.domain.maturity.dto.response.MaturityOverdueDailyChargeDetailResponse;
+import com.repayment.global.code.DelinquencyStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -17,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -198,6 +202,79 @@ class LoanMaturityOverdueMapperIntegrationTest {
         private Map<String, Object> findPaid(long loanMaturityOverdueId) {
             return jdbcTemplate.queryForMap("SELECT paid_carried_delinquency_charge, paid_carried_interest "
                     + "FROM loan_maturity_overdue WHERE loan_maturity_overdue_id = ?", loanMaturityOverdueId);
+        }
+    }
+
+    @Nested
+    @DisplayName("대출 현황의 만기 경과 기록을 조회할 때")
+    class 만기_경과_기록_조회 {
+
+        @Test
+        @DisplayName("하루 연체금을 10/20·10/19 순서로 넣으면 전환 기록 칸을 모두 가져오고 하루 연체금은 10/19·10/20 순서다")
+        void 전환_기록과_하루_연체금을_날짜_순으로_가져온다() {
+            // given
+            long loanMaturityOverdueId = insert("INSERT INTO loan_maturity_overdue (loan_account_id, converted_date, "
+                    + "applied_base_rate, applied_additional_rate, carried_interest, paid_carried_interest, "
+                    + "carried_delinquency_charge, paid_carried_delinquency_charge) "
+                    + "VALUES (?, '2026-10-19', 3.5, 2.0, 55000, 1000, 700, 300)", loanAccountId);
+            insertDailyCharge(loanMaturityOverdueId, "2026-10-20");
+            insertDailyCharge(loanMaturityOverdueId, "2026-10-19");
+
+            // when
+            Optional<LoanMaturityOverdueDetailResponse> result =
+                    loanMaturityOverdueMapper.findMaturityOverdueDetail(loanAccountId);
+
+            // then
+            assertThat(result).hasValueSatisfying(detail -> {
+                assertThat(detail.getConvertedDate()).isEqualTo(LocalDate.of(2026, 10, 19));
+                assertThat(detail.getAppliedBaseRate()).isEqualByComparingTo("3.5");
+                assertThat(detail.getAppliedAdditionalRate()).isEqualByComparingTo("2.0");
+                assertThat(detail.getCarriedInterest()).isEqualByComparingTo("55000");
+                assertThat(detail.getPaidCarriedInterest()).isEqualByComparingTo("1000");
+                assertThat(detail.getCarriedDelinquencyCharge()).isEqualByComparingTo("700");
+                assertThat(detail.getPaidCarriedDelinquencyCharge()).isEqualByComparingTo("300");
+                assertThat(detail.getDailyCharges())
+                        .extracting(MaturityOverdueDailyChargeDetailResponse::getChargeDate)
+                        .containsExactly(LocalDate.of(2026, 10, 19), LocalDate.of(2026, 10, 20));
+                MaturityOverdueDailyChargeDetailResponse charge = detail.getDailyCharges().get(0);
+                assertThat(charge.getDelinquencyTargetAmount()).isEqualByComparingTo("12000000");
+                assertThat(charge.getDelinquencyRate()).isEqualByComparingTo("8.5");
+                assertThat(charge.getDelinquencyCharge()).isEqualByComparingTo("2794");
+                assertThat(charge.getPaidDelinquencyCharge()).isEqualByComparingTo("500");
+                assertThat(charge.getDelinquencyStatus()).isEqualTo(DelinquencyStatus.IN_PROGRESS);
+            });
+        }
+
+        @Test
+        @DisplayName("전환 당일이라 하루 연체금이 없으면 하루 연체금은 빈 목록이다")
+        void 하루_연체금이_없으면_빈_목록이다() {
+            // given
+            insertMaturityOverdueRow(loanAccountId);
+
+            // when
+            Optional<LoanMaturityOverdueDetailResponse> result =
+                    loanMaturityOverdueMapper.findMaturityOverdueDetail(loanAccountId);
+
+            // then
+            assertThat(result).hasValueSatisfying(detail -> assertThat(detail.getDailyCharges()).isEmpty());
+        }
+
+        @Test
+        @DisplayName("만기 경과 기록이 없는 대출이면 빈 값이다")
+        void 기록이_없으면_빈_값이다() {
+            // when
+            Optional<LoanMaturityOverdueDetailResponse> result =
+                    loanMaturityOverdueMapper.findMaturityOverdueDetail(loanAccountId);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+
+        private void insertDailyCharge(long loanMaturityOverdueId, String chargeDate) {
+            insert("INSERT INTO maturity_overdue_daily_charge (loan_maturity_overdue_id, charge_date, "
+                    + "loan_judgment_status_id, delinquency_target_amount, delinquency_rate, delinquency_charge, "
+                    + "paid_delinquency_charge, delinquency_status_id) "
+                    + "VALUES (?, ?, 1, 12000000, 8.5, 2794, 500, 1)", loanMaturityOverdueId, chargeDate);
         }
     }
 

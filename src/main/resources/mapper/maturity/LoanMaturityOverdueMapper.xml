@@ -55,4 +55,44 @@
         SET paid_carried_interest = paid_carried_interest + #{amount}
         WHERE loan_maturity_overdue_id = #{loanMaturityOverdueId}
     </update>
+
+    <resultMap id="maturityOverdueDetail" type="com.repayment.domain.maturity.dto.response.LoanMaturityOverdueDetailResponse">
+        <id property="convertedDate" column="converted_date"/>
+        <result property="appliedBaseRate" column="applied_base_rate"/>
+        <result property="appliedAdditionalRate" column="applied_additional_rate"/>
+        <result property="carriedInterest" column="carried_interest"/>
+        <result property="paidCarriedInterest" column="paid_carried_interest"/>
+        <result property="carriedDelinquencyCharge" column="carried_delinquency_charge"/>
+        <result property="paidCarriedDelinquencyCharge" column="paid_carried_delinquency_charge"/>
+        <collection property="dailyCharges"
+                    ofType="com.repayment.domain.maturity.dto.response.MaturityOverdueDailyChargeDetailResponse">
+            <id property="chargeDate" column="charge_date"/>
+            <result property="delinquencyTargetAmount" column="delinquency_target_amount"/>
+            <result property="delinquencyRate" column="delinquency_rate"/>
+            <result property="delinquencyCharge" column="delinquency_charge"/>
+            <result property="paidDelinquencyCharge" column="paid_delinquency_charge"/>
+            <result property="delinquencyStatus" column="delinquency_status_id"/>
+        </collection>
+    </resultMap>
+
+    <!-- 전환 당일처럼 하루 연체금이 없어도 전환 기록은 나오게 LEFT JOIN한다. -->
+    <select id="findMaturityOverdueDetail" resultMap="maturityOverdueDetail">
+        SELECT m.converted_date,
+               m.applied_base_rate,
+               m.applied_additional_rate,
+               m.carried_interest,
+               m.paid_carried_interest,
+               m.carried_delinquency_charge,
+               m.paid_carried_delinquency_charge,
+               mdc.charge_date,
+               mdc.delinquency_target_amount,
+               mdc.delinquency_rate,
+               mdc.delinquency_charge,
+               mdc.paid_delinquency_charge,
+               mdc.delinquency_status_id
+        FROM loan_maturity_overdue m
+        LEFT JOIN maturity_overdue_daily_charge mdc ON mdc.loan_maturity_overdue_id = m.loan_maturity_overdue_id
+        WHERE m.loan_account_id = #{loanAccountId}
+        ORDER BY mdc.charge_date
+    </select>
 </mapper>

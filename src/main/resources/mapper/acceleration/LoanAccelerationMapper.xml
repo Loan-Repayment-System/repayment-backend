@@ -64,4 +64,52 @@
         SET paid_carried_overdue_principal = paid_carried_overdue_principal + #{amount}
         WHERE loan_acceleration_id = #{loanAccelerationId}
     </update>
+
+    <resultMap id="accelerationDetail" type="com.repayment.domain.acceleration.dto.response.LoanAccelerationDetailResponse">
+        <id property="convertedDate" column="converted_date"/>
+        <result property="appliedBaseRate" column="applied_base_rate"/>
+        <result property="appliedAdditionalRate" column="applied_additional_rate"/>
+        <result property="carriedInterest" column="carried_interest"/>
+        <result property="paidCarriedInterest" column="paid_carried_interest"/>
+        <result property="carriedOverduePrincipal" column="carried_overdue_principal"/>
+        <result property="paidCarriedOverduePrincipal" column="paid_carried_overdue_principal"/>
+        <result property="carriedDelinquencyCharge" column="carried_delinquency_charge"/>
+        <result property="paidCarriedDelinquencyCharge" column="paid_carried_delinquency_charge"/>
+        <collection property="dailyCharges"
+                    ofType="com.repayment.domain.acceleration.dto.response.AccelerationDailyChargeDetailResponse">
+            <id property="chargeDate" column="charge_date"/>
+            <result property="delinquencyTargetAmount" column="delinquency_target_amount"/>
+            <result property="delinquencyRate" column="delinquency_rate"/>
+            <result property="delinquencyCharge" column="delinquency_charge"/>
+            <result property="paidDelinquencyCharge" column="paid_delinquency_charge"/>
+            <result property="interestAmount" column="interest_amount"/>
+            <result property="paidInterest" column="paid_interest"/>
+            <result property="delinquencyStatus" column="delinquency_status_id"/>
+        </collection>
+    </resultMap>
+
+    <!-- 전환 당일처럼 하루 기록이 없어도 전환 기록은 나오게 LEFT JOIN한다. -->
+    <select id="findAccelerationDetail" resultMap="accelerationDetail">
+        SELECT a.converted_date,
+               a.applied_base_rate,
+               a.applied_additional_rate,
+               a.carried_interest,
+               a.paid_carried_interest,
+               a.carried_overdue_principal,
+               a.paid_carried_overdue_principal,
+               a.carried_delinquency_charge,
+               a.paid_carried_delinquency_charge,
+               adc.charge_date,
+               adc.delinquency_target_amount,
+               adc.delinquency_rate,
+               adc.delinquency_charge,
+               adc.paid_delinquency_charge,
+               adc.interest_amount,
+               adc.paid_interest,
+               adc.delinquency_status_id
+        FROM loan_acceleration a
+        LEFT JOIN acceleration_daily_charge adc ON adc.loan_acceleration_id = a.loan_acceleration_id
+        WHERE a.loan_account_id = #{loanAccountId}
+        ORDER BY adc.charge_date
+    </select>
 </mapper>

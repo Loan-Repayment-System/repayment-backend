@@ -1,6 +1,7 @@
 package com.repayment.domain.schedule.mapper;
 
 import com.repayment.domain.schedule.dto.response.AppliedRateResponse;
+import com.repayment.domain.schedule.dto.response.InstallmentDetailResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentAmountResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleConfirmTargetResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse;
@@ -21,6 +22,8 @@ public interface RepaymentScheduleMapper {
     List<RepaymentScheduleJudgmentTargetResponse> findJudgmentTargets(Long loanAccountId);
 
     List<RepaymentScheduleJudgmentTargetResponse> findUnfinishedJudgmentTargets(Long loanAccountId);
+
+    List<InstallmentDetailResponse> findInstallmentDetails(Long loanAccountId);
 
     int insertScheduledInstallments(@Param("loanAccountId") Long loanAccountId,
                                     @Param("installments") List<ScheduledInstallmentResponse> installments);

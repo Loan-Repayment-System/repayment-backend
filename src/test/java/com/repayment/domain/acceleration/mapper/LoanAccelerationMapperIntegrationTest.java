@@ -1,7 +1,10 @@
 package com.repayment.domain.acceleration.mapper;
 
 import com.repayment.TestcontainersConfig;
+import com.repayment.domain.acceleration.dto.response.AccelerationDailyChargeDetailResponse;
 import com.repayment.domain.acceleration.dto.response.LoanAccelerationCarryOverResponse;
+import com.repayment.domain.acceleration.dto.response.LoanAccelerationDetailResponse;
+import com.repayment.global.code.DelinquencyStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -17,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -207,6 +211,81 @@ class LoanAccelerationMapperIntegrationTest {
             return jdbcTemplate.queryForMap("SELECT paid_carried_delinquency_charge, paid_carried_interest, "
                     + "paid_carried_overdue_principal FROM loan_acceleration WHERE loan_acceleration_id = ?",
                     loanAccelerationId);
+        }
+    }
+
+    @Nested
+    @DisplayName("대출 현황의 기한이익상실 기록을 조회할 때")
+    class 기한이익상실_기록_조회 {
+
+        @Test
+        @DisplayName("하루 기록을 10/20·10/19 순서로 넣으면 전환 기록 칸을 모두 가져오고 하루 기록은 10/19·10/20 순서다")
+        void 전환_기록과_하루_기록을_날짜_순으로_가져온다() {
+            // given
+            long loanAccelerationId = insert("INSERT INTO loan_acceleration (loan_account_id, converted_date, "
+                    + "applied_base_rate, applied_additional_rate, carried_interest, paid_carried_interest, "
+                    + "carried_overdue_principal, paid_carried_overdue_principal, carried_delinquency_charge, "
+                    + "paid_carried_delinquency_charge) "
+                    + "VALUES (?, '2026-10-18', 3.5, 2.0, 101062, 1000, 1954469, 2000, 12345, 300)", loanAccountId);
+            insertDailyCharge(loanAccelerationId, "2026-10-20");
+            insertDailyCharge(loanAccelerationId, "2026-10-19");
+
+            // when
+            Optional<LoanAccelerationDetailResponse> result = loanAccelerationMapper.findAccelerationDetail(loanAccountId);
+
+            // then
+            assertThat(result).hasValueSatisfying(detail -> {
+                assertThat(detail.getConvertedDate()).isEqualTo(LocalDate.of(2026, 10, 18));
+                assertThat(detail.getAppliedBaseRate()).isEqualByComparingTo("3.5");
+                assertThat(detail.getAppliedAdditionalRate()).isEqualByComparingTo("2.0");
+                assertThat(detail.getCarriedInterest()).isEqualByComparingTo("101062");
+                assertThat(detail.getPaidCarriedInterest()).isEqualByComparingTo("1000");
+                assertThat(detail.getCarriedOverduePrincipal()).isEqualByComparingTo("1954469");
+                assertThat(detail.getPaidCarriedOverduePrincipal()).isEqualByComparingTo("2000");
+                assertThat(detail.getCarriedDelinquencyCharge()).isEqualByComparingTo("12345");
+                assertThat(detail.getPaidCarriedDelinquencyCharge()).isEqualByComparingTo("300");
+                assertThat(detail.getDailyCharges())
+                        .extracting(AccelerationDailyChargeDetailResponse::getChargeDate)
+                        .containsExactly(LocalDate.of(2026, 10, 19), LocalDate.of(2026, 10, 20));
+                AccelerationDailyChargeDetailResponse charge = detail.getDailyCharges().get(0);
+                assertThat(charge.getDelinquencyTargetAmount()).isEqualByComparingTo("11025000");
+                assertThat(charge.getDelinquencyRate()).isEqualByComparingTo("8.5");
+                assertThat(charge.getDelinquencyCharge()).isEqualByComparingTo("2567");
+                assertThat(charge.getPaidDelinquencyCharge()).isEqualByComparingTo("500");
+                assertThat(charge.getInterestAmount()).isEqualByComparingTo("1700");
+                assertThat(charge.getPaidInterest()).isEqualByComparingTo("200");
+                assertThat(charge.getDelinquencyStatus()).isEqualTo(DelinquencyStatus.IN_PROGRESS);
+            });
+        }
+
+        @Test
+        @DisplayName("전환 당일이라 하루 기록이 없으면 하루 기록은 빈 목록이다")
+        void 하루_기록이_없으면_빈_목록이다() {
+            // given
+            insertAccelerationRow(loanAccountId);
+
+            // when
+            Optional<LoanAccelerationDetailResponse> result = loanAccelerationMapper.findAccelerationDetail(loanAccountId);
+
+            // then
+            assertThat(result).hasValueSatisfying(detail -> assertThat(detail.getDailyCharges()).isEmpty());
+        }
+
+        @Test
+        @DisplayName("기한이익상실 기록이 없는 대출이면 빈 값이다")
+        void 기록이_없으면_빈_값이다() {
+            // when
+            Optional<LoanAccelerationDetailResponse> result = loanAccelerationMapper.findAccelerationDetail(loanAccountId);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+
+        private void insertDailyCharge(long loanAccelerationId, String chargeDate) {
+            insert("INSERT INTO acceleration_daily_charge (loan_acceleration_id, charge_date, loan_judgment_status_id, "
+                    + "delinquency_target_amount, delinquency_rate, delinquency_charge, paid_delinquency_charge, "
+                    + "interest_amount, paid_interest, delinquency_status_id) "
+                    + "VALUES (?, ?, 23, 11025000, 8.5, 2567, 500, 1700, 200, 1)", loanAccelerationId, chargeDate);
         }
     }
 

@@ -1,11 +1,14 @@
 package com.repayment.domain.schedule.mapper;
 
 import com.repayment.TestcontainersConfig;
+import com.repayment.domain.delinquency.dto.response.InstallmentDelinquencyChargeDetailResponse;
 import com.repayment.domain.schedule.dto.response.AppliedRateResponse;
+import com.repayment.domain.schedule.dto.response.InstallmentDetailResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentAmountResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleConfirmTargetResponse;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse;
 import com.repayment.domain.schedule.dto.response.ScheduledInstallmentResponse;
+import com.repayment.global.code.DelinquencyStatus;
 import com.repayment.global.code.InterestType;
 import com.repayment.global.code.RepaymentMethod;
 import com.repayment.global.code.RepaymentScheduleStatus;
@@ -22,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -438,6 +442,91 @@ class RepaymentScheduleMapperIntegrationTest {
             return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
                     + "loan_status_id, loan_principal_balance, monthly_payment_day) "
                     + "VALUES (?, ?, '900-000-000999', 1, 3000000, 17)", contractId, accountId);
+        }
+    }
+
+    @Nested
+    @DisplayName("대출 현황의 회차 목록을 조회할 때")
+    class 회차_목록_조회 {
+
+        @Test
+        @DisplayName("3·1·2회 순서로 넣고 2회에 10/20·10/19 연체금을 넣으면 1·2·3회 순서로, 2회 연체금은 10/19·10/20 순서로 가져오고 다른 대출 회차는 빠진다")
+        void 회차_번호_순과_연체금_날짜_순으로_가져온다() {
+            // given
+            long targetLoanAccountId = insertDetailLoanAccount();
+            insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, repayment_schedule_status_id, "
+                    + "scheduled_date) VALUES (?, 3, 1, '2026-11-18')", targetLoanAccountId);
+            insertDetailSchedule(targetLoanAccountId, 1, 3, "2026-09-18", "975000", "55000");
+            long second = insertDetailSchedule(targetLoanAccountId, 2, 4, "2026-10-18", "979469", "0");
+            insertDelinquencyCharge(second, "2026-10-20");
+            insertDelinquencyCharge(second, "2026-10-19");
+
+            // when
+            List<InstallmentDetailResponse> result = repaymentScheduleMapper.findInstallmentDetails(targetLoanAccountId);
+
+            // then
+            assertThat(result).extracting(InstallmentDetailResponse::getInstallmentNo).containsExactly(1, 2, 3);
+            InstallmentDetailResponse paid = result.get(0);
+            assertThat(paid.getStatus()).isEqualTo(RepaymentScheduleStatus.PAID);
+            assertThat(paid.getScheduledDate()).isEqualTo(LocalDate.of(2026, 9, 18));
+            assertThat(paid.getScheduledPrincipal()).isEqualByComparingTo("975000");
+            assertThat(paid.getScheduledInterest()).isEqualByComparingTo("55000");
+            assertThat(paid.getAppliedBaseRate()).isEqualByComparingTo("3.5");
+            assertThat(paid.getAppliedAdditionalRate()).isEqualByComparingTo("2.0");
+            assertThat(paid.getConfirmedAt()).isEqualTo(LocalDateTime.of(2026, 9, 13, 0, 5, 12));
+            assertThat(paid.getPaidPrincipal()).isEqualByComparingTo("975000");
+            assertThat(paid.getPaidInterest()).isEqualByComparingTo("55000");
+            assertThat(paid.getDelinquencyCharges()).isEmpty();
+
+            InstallmentDetailResponse overdue = result.get(1);
+            assertThat(overdue.getStatus()).isEqualTo(RepaymentScheduleStatus.OVERDUE);
+            assertThat(overdue.getDelinquencyCharges())
+                    .extracting(InstallmentDelinquencyChargeDetailResponse::getChargeDate)
+                    .containsExactly(LocalDate.of(2026, 10, 19), LocalDate.of(2026, 10, 20));
+            InstallmentDelinquencyChargeDetailResponse charge = overdue.getDelinquencyCharges().get(0);
+            assertThat(charge.getDelinquencyTargetAmount()).isEqualByComparingTo("1030000");
+            assertThat(charge.getDelinquencyRate()).isEqualByComparingTo("8.5");
+            assertThat(charge.getDelinquencyCharge()).isEqualByComparingTo("239");
+            assertThat(charge.getPaidDelinquencyCharge()).isEqualByComparingTo("100");
+            assertThat(charge.getDelinquencyStatus()).isEqualTo(DelinquencyStatus.IN_PROGRESS);
+
+            InstallmentDetailResponse unconfirmed = result.get(2);
+            assertThat(unconfirmed.getStatus()).isEqualTo(RepaymentScheduleStatus.SCHEDULED);
+            assertThat(unconfirmed.getScheduledPrincipal()).isNull();
+            assertThat(unconfirmed.getScheduledInterest()).isNull();
+            assertThat(unconfirmed.getAppliedBaseRate()).isNull();
+            assertThat(unconfirmed.getAppliedAdditionalRate()).isNull();
+            assertThat(unconfirmed.getConfirmedAt()).isNull();
+            assertThat(unconfirmed.getPaidPrincipal()).isEqualByComparingTo("0");
+            assertThat(unconfirmed.getDelinquencyCharges()).isEmpty();
+        }
+
+        private long insertDetailLoanAccount() {
+            long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
+                    + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
+                    + "VALUES (?, ?, '2026-08-18', '2027-08-18', 12000000, 2.0, 3.5, 12)", productId, memberId);
+            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
+                    + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                    + "VALUES (?, ?, '900-000-000777', 2, 11025000, 18, 2)", contractId, accountId);
+        }
+
+        // 납부한 원금·이자는 이자가 0원이 아니면 모두 낸 것으로 넣는다
+        private long insertDetailSchedule(long targetLoanAccountId, int installmentNo, int statusId,
+                                          String scheduledDate, String principal, String paidInterest) {
+            BigDecimal paid = new BigDecimal(paidInterest);
+            return insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, repayment_schedule_status_id, "
+                            + "scheduled_date, scheduled_principal, scheduled_interest, applied_base_rate, "
+                            + "applied_additional_rate, confirmed_at, paid_principal, paid_interest) "
+                            + "VALUES (?, ?, ?, ?, ?, 55000, 3.5, 2.0, '2026-09-13 00:05:12', ?, ?)",
+                    targetLoanAccountId, installmentNo, statusId, scheduledDate, new BigDecimal(principal),
+                    paid.signum() == 0 ? BigDecimal.ZERO : new BigDecimal(principal), paid);
+        }
+
+        private void insertDelinquencyCharge(long repaymentScheduleId, String chargeDate) {
+            insert("INSERT INTO installment_delinquency_charge (repayment_schedule_id, charge_date, "
+                    + "loan_judgment_status_id, delinquency_target_amount, delinquency_rate, delinquency_charge, "
+                    + "paid_delinquency_charge, delinquency_status_id) VALUES (?, ?, 21, 1030000, 8.5, 239, 100, 1)",
+                    repaymentScheduleId, chargeDate);
         }
     }
 

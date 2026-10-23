@@ -1,5 +1,6 @@
 package com.repayment.domain.repayment.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.repayment.global.code.RepaymentTargetType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,6 +20,8 @@ public class RepaymentTargetResponse {
 
     private int repaymentOrder;
     private RepaymentTargetType type;
+    // 충당이 채울 행을 찾는 데만 쓴다. 응답에는 내보내지 않는다.
+    @JsonIgnore
     private Long targetId;
     private BigDecimal amount;
 }

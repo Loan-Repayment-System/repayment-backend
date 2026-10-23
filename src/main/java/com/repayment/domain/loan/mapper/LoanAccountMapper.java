@@ -1,5 +1,6 @@
 package com.repayment.domain.loan.mapper;
 
+import com.repayment.domain.loan.dto.response.LoanAccountDetailResponse;
 import com.repayment.domain.loan.dto.response.LoanAccountResponse;
 import com.repayment.domain.loan.dto.response.LoanAccountStatusResponse;
 import com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse;
@@ -18,6 +19,8 @@ public interface LoanAccountMapper {
     Optional<LoanAccountStatusResponse> findLoanAccountStatus(Long loanAccountId);
 
     Optional<BigDecimal> findRemainingDebtTotal(Long loanAccountId);
+
+    Optional<LoanAccountDetailResponse> findLoanAccountDetail(Long loanAccountId);
 
     int insertLoanAccount(LoanAccountResponse loanAccount);
 
