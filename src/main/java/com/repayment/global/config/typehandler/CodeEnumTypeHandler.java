@@ -1,6 +1,5 @@
 package com.repayment.global.config.typehandler;
 
-import com.repayment.global.code.AccountStatus;
 import com.repayment.global.code.CodeEnum;
 import com.repayment.global.code.DailyClosingStatus;
 import com.repayment.global.code.DelinquencyStatus;
@@ -12,7 +11,6 @@ import com.repayment.global.code.RepaymentChannel;
 import com.repayment.global.code.RepaymentMethod;
 import com.repayment.global.code.RepaymentScheduleStatus;
 import com.repayment.global.code.RepaymentTargetType;
-import com.repayment.global.code.TransactionType;
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
 import org.apache.ibatis.type.MappedTypes;
@@ -33,8 +31,6 @@ import java.sql.SQLException;
         RepaymentScheduleStatus.class,
         LoanJudgmentStatus.class,
         DelinquencyStatus.class,
-        AccountStatus.class,
-        TransactionType.class,
         RepaymentChannel.class,
         DailyClosingStatus.class,
         FailureType.class,

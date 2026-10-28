@@ -13,16 +13,12 @@ import com.repayment.domain.repayment.dto.response.RepaymentEligibilityResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentResultResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentTargetResponse;
-import com.repayment.domain.repayment.exception.CollectionAccountNotFoundException;
 import com.repayment.domain.repayment.mapper.RepaymentMapper;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse;
 import com.repayment.domain.schedule.mapper.RepaymentScheduleMapper;
 import com.repayment.domain.schedule.service.RepaymentScheduleJudgmentService;
-import com.repayment.domain.transfer.mapper.AccountMapper;
-import com.repayment.domain.transfer.service.InternalTransferService;
 import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.RepaymentChannel;
-import com.repayment.global.config.RepaymentProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,8 +32,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 상환 요청 1건을 처리한다. 채널(고객 상환·자동 상환)은 부르는 쪽이 정해 넘긴다. 상환 가능 확인 → 당행 이체 → 납부 기록 → 충당 → 스케줄 판정·연체금 해소 판정
- * → 상태 판정 → 상태 변화 처리를 한 트랜잭션으로 하고, 어느 단계에서 실패해도 이체까지 모두 취소된다.
+ * 상환 요청 1건을 처리한다. 채널(고객 상환·자동 상환)은 부르는 쪽이 정해 넘긴다. 상환 가능 확인 → 납부 기록 → 충당 → 스케줄 판정·연체금 해소 판정
+ * → 상태 판정 → 상태 변화 처리를 한 트랜잭션으로 하고, 어느 단계에서 실패해도 모두 취소된다.
  * 마지막에 상환을 모두 반영한 원금잔액·대출 상태·남은 갚을 금액을 읽어 돌려준다.
  */
 @Service
@@ -45,8 +41,6 @@ import java.util.UUID;
 public class RepaymentService {
 
     private final RepaymentEligibilityService repaymentEligibilityService;
-    private final AccountMapper accountMapper;
-    private final InternalTransferService internalTransferService;
     private final RepaymentMapper repaymentMapper;
     private final InstallmentAllocationService installmentAllocationService;
     private final AccelerationAllocationService accelerationAllocationService;
@@ -59,7 +53,6 @@ public class RepaymentService {
     private final LoanAccountMapper loanAccountMapper;
     private final LoanStatusJudgmentMapper loanStatusJudgmentMapper;
     private final RepayableAmountService repayableAmountService;
-    private final RepaymentProperties repaymentProperties;
     private final Clock clock;
 
     @Transactional
@@ -72,12 +65,10 @@ public class RepaymentService {
         RepaymentEligibilityResponse eligibility =
                 repaymentEligibilityService.check(loanAccountId, amount, businessDate);
 
-        String collectionAccountNo = repaymentProperties.collectionAccountNo();
-        Long collectionAccountId = accountMapper.findAccountIdByAccountNo(collectionAccountNo)
-                .orElseThrow(() -> new CollectionAccountNotFoundException(collectionAccountNo));
+        // TODO(firmbanking): 상환 계좌에서 수납 계좌(repayment.collection-*)로 출금 이체 전문을 보내고,
+        //  응답의 거래번호를 transactionNo로 쓴다. 외부 이체는 DB 롤백으로 되돌릴 수 없으므로
+        //  호출 순서와 실패 처리를 함께 정한다.
         String transactionNo = UUID.randomUUID().toString();
-        internalTransferService.transfer(eligibility.getRepaymentAccountId(), collectionAccountId, amount,
-                transactionNo);
 
         RepaymentResponse repayment = RepaymentResponse.builder()
                 .loanAccountId(loanAccountId)

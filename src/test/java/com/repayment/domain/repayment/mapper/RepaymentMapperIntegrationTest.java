@@ -39,16 +39,14 @@ class RepaymentMapperIntegrationTest {
     @BeforeEach
     void setUp() {
         long memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('repayment-test', 'pw', '테스트')");
-        long accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
-                + "VALUES (?, '110-000-000011', 0, 1)", memberId);
         long productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
                 + "VALUES (1, 2, '테스트 상품', 1.5)");
         long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
                 + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
                 + "VALUES (?, ?, '2026-01-10', '2027-01-10', 10000000, 1.5, 4.5, 12)", productId, memberId);
-        loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
-                + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                + "VALUES (?, ?, '900-000-000301', 1, 10000000, 10, 10)", contractId, accountId);
+        loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                + "VALUES (?, '999', '110-000-000001', '900-000-000301', 1, 10000000, 10, 10)", contractId);
     }
 
     @Nested

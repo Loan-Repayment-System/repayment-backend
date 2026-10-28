@@ -7,7 +7,7 @@
 
 ## 코드성 테이블
 
-12개 모두 구조가 같다. id는 enum과 1:1이므로 AUTO_INCREMENT를 쓰지 않는다.
+10개 모두 구조가 같다. id는 enum과 1:1이므로 AUTO_INCREMENT를 쓰지 않는다.
 
 | No. | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 비고 |
 |---|---|---|---|---|---|
@@ -22,8 +22,6 @@
 | repayment_schedule_status | 회차 상태 | 1 예정, 2 납부 기한 도래, 3 납입 완료, 4 연체, 5 기한이익상실로 종료, 6 만기 경과로 종료 |
 | loan_judgment_status | 판정 상태 | 0 정상, 1 만기 경과 미상환, 2 완제, 11 만기일시 이자연체 1개월 미만, 12 만기일시 기한이익상실, 13 만기일시 기한이익상실 ❻항, 21 분할상환 1회 연체, 22 분할상환 기한이익상실, 23 분할상환 기한이익상실 ❻항 |
 | delinquency_status | 연체금 상태 | 1 진행중, 2 해소 |
-| account_status | 계좌 상태 | 1 정상, 2 해지, 3 정지 |
-| transaction_type | 거래 유형 | 1 출금, 2 입금 |
 | repayment_channel | 상환 채널 | 1 고객 상환, 2 자동 상환 |
 | daily_closing_status | 일마감 상태 | 1 진행중, 2 완료, 3 실패 |
 | failure_type | 실패 종류 | 1 기준금리 조회 오류, 2 대출 스케줄 판정 실패, 3 대출 상태 판정 실패, 4 상태 변화 처리 실패, 5 배치 중단 |
@@ -31,7 +29,7 @@
 
 ---
 
-## 회원·계좌·이체
+## 회원
 
 ### 회원 (member)
 
@@ -41,33 +39,6 @@
 | 2 | 로그인ID | login_id | VARCHAR(50) | UQ | N | | |
 | 3 | 비밀번호 | password | VARCHAR(255) | | N | | 해시값 저장 |
 | 4 | 이름 | name | VARCHAR(50) | | N | | |
-
-### 계좌 (account)
-
-| No. | 컬럼 한글명 | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 기본값 | 비고 |
-|---|---|---|---|---|---|---|---|
-| 1 | 계좌ID | account_id | BIGINT | PK | N | AUTO_INCREMENT | |
-| 2 | 회원ID | member_id | BIGINT | FK | Y | | NULL이면 은행 계좌(대출 상환 수납 계좌) |
-| 3 | 계좌번호 | account_no | VARCHAR(20) | UQ | N | | |
-| 4 | 잔액 | balance | DECIMAL(23,4) | | N | 0 | 이체만 바꾼다 |
-| 5 | 계좌 상태 | account_status_id | INT | FK | N | | 정상·해지·정지 |
-
-### 계좌 거래 기록 (account_transaction)
-
-이체 1건에 출금·입금 2행이 같은 거래번호로 생긴다. 고치거나 지우지 않는다.
-
-| No. | 컬럼 한글명 | 컬럼 영문명 | 데이터 타입 | 제약조건 | NULL | 기본값 | 비고 |
-|---|---|---|---|---|---|---|---|
-| 1 | 거래ID | account_transaction_id | BIGINT | PK | N | AUTO_INCREMENT | |
-| 2 | 계좌ID | account_id | BIGINT | FK, UQ① | N | | |
-| 3 | 거래 유형 | transaction_type_id | INT | FK | N | | 출금·입금 |
-| 4 | 거래번호 | transaction_no | VARCHAR(40) | UQ① | N | | 요청한 쪽이 넘긴 값 |
-| 5 | 금액 | amount | DECIMAL(23,4) | | N | | |
-| 6 | 거래 후 잔액 | balance_after | DECIMAL(23,4) | | N | | |
-| 7 | 상대 계좌번호 | counterpart_account_no | VARCHAR(20) | | N | | |
-| 8 | 거래 일시 | transacted_at | DATETIME | | N | | |
-
-> UQ① (account_id, transaction_no)
 
 ---
 
@@ -103,12 +74,13 @@
 |---|---|---|---|---|---|---|---|
 | 1 | 대출계좌ID | loan_account_id | BIGINT | PK | N | AUTO_INCREMENT | |
 | 2 | 계약ID | loan_contract_id | BIGINT | FK, UQ | N | | 1:1 |
-| 3 | 상환 계좌ID | repayment_account_id | BIGINT | FK | N | | account.account_id |
-| 4 | 대출계좌번호 | account_no | VARCHAR(20) | UQ | N | | |
-| 5 | 대출 상태 | loan_status_id | INT | FK | N | | 고객에게 보여 주는 현재 상태. 판정에는 쓰지 않는다 |
-| 6 | 원금잔액 | loan_principal_balance | DECIMAL(23,4) | | N | | |
-| 7 | 월 납입일 | monthly_payment_day | TINYINT | | N | | |
-| 8 | 마지막 확정 회차 | last_confirmed_installment_no | INT | | N | 0 | 0이면 없음. 상환금 확정만 올린다 |
+| 3 | 상환 계좌 은행코드 | repayment_bank_code | CHAR(3) | | N | | 금융결제원 표준 은행코드 |
+| 4 | 상환 계좌번호 | repayment_account_no | VARCHAR(20) | | N | | 계좌는 펌뱅킹 서버에 있다 |
+| 5 | 대출계좌번호 | account_no | VARCHAR(20) | UQ | N | | |
+| 6 | 대출 상태 | loan_status_id | INT | FK | N | | 고객에게 보여 주는 현재 상태. 판정에는 쓰지 않는다 |
+| 7 | 원금잔액 | loan_principal_balance | DECIMAL(23,4) | | N | | |
+| 8 | 월 납입일 | monthly_payment_day | TINYINT | | N | | |
+| 9 | 마지막 확정 회차 | last_confirmed_installment_no | INT | | N | 0 | 0이면 없음. 상환금 확정만 올린다 |
 
 ### 상환 스케줄 (repayment_schedule)
 
@@ -228,7 +200,7 @@
 | 4 | 요청 키 | request_key | VARCHAR(64) | UQ | N | | 중복 요청 방지 |
 | 5 | 낸 금액 | paid_amount | DECIMAL(23,4) | | N | | |
 | 6 | 낸 일시 | paid_at | DATETIME | | N | | |
-| 7 | 이체 거래번호 | transaction_no | VARCHAR(40) | | N | | account_transaction과 연결(FK 아님) |
+| 7 | 이체 거래번호 | transaction_no | VARCHAR(40) | | N | | 펌뱅킹 이체의 거래번호 |
 
 ### 충당 상세 (repayment_allocation)
 

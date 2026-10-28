@@ -6,7 +6,8 @@
     <select id="findRepaymentLoanAccountForUpdate"
             resultType="com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse">
         SELECT loan_account_id,
-               repayment_account_id
+               repayment_bank_code,
+               repayment_account_no
         FROM loan_account
         WHERE loan_account_id = #{loanAccountId}
         FOR UPDATE
@@ -72,10 +73,10 @@
 
     <!-- last_confirmed_installment_no는 기본값 0(확정한 회차 없음)이다. -->
     <insert id="insertLoanAccount" useGeneratedKeys="true" keyProperty="loanAccountId">
-        INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, loan_status_id,
-                                  loan_principal_balance, monthly_payment_day)
-        VALUES (#{loanContractId}, #{repaymentAccountId}, #{accountNo}, #{loanStatusId},
-                #{loanPrincipalBalance}, #{monthlyPaymentDay})
+        INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, account_no,
+                                  loan_status_id, loan_principal_balance, monthly_payment_day)
+        VALUES (#{loanContractId}, #{repaymentBankCode}, #{repaymentAccountNo}, #{accountNo},
+                #{loanStatusId}, #{loanPrincipalBalance}, #{monthlyPaymentDay})
     </insert>
 
     <update id="updateSubtractLoanPrincipalBalance">

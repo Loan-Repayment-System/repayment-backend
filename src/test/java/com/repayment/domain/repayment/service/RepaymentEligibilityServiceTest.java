@@ -39,7 +39,8 @@ import static org.mockito.BDDMockito.then;
 class RepaymentEligibilityServiceTest {
 
     private static final long LOAN_ACCOUNT_ID = 10L;
-    private static final long REPAYMENT_ACCOUNT_ID = 30L;
+    private static final String REPAYMENT_BANK_CODE = "999";
+    private static final String REPAYMENT_ACCOUNT_NO = "110-123-456789";
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 16);
 
     @Mock
@@ -286,7 +287,7 @@ class RepaymentEligibilityServiceTest {
 
         // PAY-06 부분 상환
         @Test
-        @DisplayName("21 1회 연체에서 갚을 금액 5,000원 중 1원만 내면 통과하고 상환 계좌 30, 판정 21, 갚을 금액 내역을 그대로 돌려준다")
+        @DisplayName("21 1회 연체에서 갚을 금액 5,000원 중 1원만 내면 통과하고 상환 계좌 999 110-123-456789, 판정 21, 갚을 금액 내역을 그대로 돌려준다")
         void 부분_상환은_통과하고_상환_처리가_쓸_값을_돌려준다() {
             // given
             givenDailyClosing(DailyClosingStatus.COMPLETED);
@@ -300,7 +301,8 @@ class RepaymentEligibilityServiceTest {
                     repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1"), TODAY);
 
             // then
-            assertThat(result.getRepaymentAccountId()).isEqualTo(REPAYMENT_ACCOUNT_ID);
+            assertThat(result.getRepaymentBankCode()).isEqualTo(REPAYMENT_BANK_CODE);
+            assertThat(result.getRepaymentAccountNo()).isEqualTo(REPAYMENT_ACCOUNT_NO);
             assertThat(result.getLatestJudgment()).isEqualTo(LoanJudgmentStatus.INSTALLMENT_OVERDUE);
             assertThat(result.getRepayableAmount()).isSameAs(repayableAmount);
         }
@@ -312,7 +314,7 @@ class RepaymentEligibilityServiceTest {
 
     private void givenLoanAccount() {
         given(loanAccountMapper.findRepaymentLoanAccountForUpdate(LOAN_ACCOUNT_ID))
-                .willReturn(Optional.of(new RepaymentLoanAccountResponse(LOAN_ACCOUNT_ID, REPAYMENT_ACCOUNT_ID)));
+                .willReturn(Optional.of(new RepaymentLoanAccountResponse(LOAN_ACCOUNT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO)));
     }
 
     private void givenLatestJudgment(LoanJudgmentStatus status) {

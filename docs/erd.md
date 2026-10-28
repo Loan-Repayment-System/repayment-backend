@@ -7,9 +7,7 @@
 
 | 구분 | 테이블 | 한글명 |
 |---|---|---|
-| 회원·계좌 | `member` | 회원 |
-| | `account` | 계좌 (`member_id`가 NULL이면 은행 수납 계좌) |
-| | `account_transaction` | 계좌 거래 기록 |
+| 회원 | `member` | 회원 |
 | 상품·대출 | `loan_product` | 대출상품 |
 | | `loan_contract` | 대출계약 |
 | | `loan_account` | 대출계좌 |
@@ -26,9 +24,8 @@
 | 일마감 | `daily_closing` | 일마감 실행 기록 |
 | | `processing_failure` | 처리 실패 기록 |
 
-코드성 테이블 12개: `interest_type`, `repayment_method`, `loan_status`, `repayment_schedule_status`,
-`loan_judgment_status`, `delinquency_status`, `account_status`, `transaction_type`,
-`repayment_channel`, `daily_closing_status`, `failure_type`, `repayment_target_type`
+코드성 테이블 10개: `interest_type`, `repayment_method`, `loan_status`, `repayment_schedule_status`,
+`loan_judgment_status`, `delinquency_status`, `repayment_channel`, `daily_closing_status`, `failure_type`, `repayment_target_type`
 
 - 코드성 테이블의 id는 enum과 1:1로 대응한다. 초기 데이터는 `V1__code_table_data.sql`에 있고, `repayment_target_type`은 `V8__merge_repayment_allocation.sql`에 있다.
 - `loan_judgment_status`의 id는 판정 번호와 같다. 십의 자리는 상환 방법(1 만기일시, 2 분할상환), 일의 자리는 단계(1 회차 연체, 2 기한이익상실, 3 기한이익상실 ❻항)이고, 한 자리는 상환 방법과 상관없는 상태다(0 정상, 1 만기 경과 미상환, 2 완제).
@@ -38,12 +35,9 @@
 
 ```mermaid
 erDiagram
-    member |o--o{ account : "보유"
     member ||--o{ loan_contract : "체결"
     loan_product ||--o{ loan_contract : ""
     loan_contract ||--|| loan_account : "개설"
-    account ||--o{ loan_account : "상환 계좌"
-    account ||--o{ account_transaction : ""
     loan_account ||--o{ repayment_schedule : ""
     loan_account ||--o{ loan_status_judgment : "상태 판정"
     repayment_schedule ||--o{ installment_delinquency_charge : ""
@@ -58,5 +52,6 @@ erDiagram
 ```
 
 - 관계선이 없는 테이블: `base_rate_history`, `daily_closing`
+- 계좌와 이체는 펌뱅킹 서버가 맡는다. `loan_account`는 상환 계좌를 은행코드와 계좌번호 값으로 가진다.
 - `repayment_allocation.target_id`는 대상 종류마다 가리키는 테이블이 달라 관계선을 긋지 않았다(FK 없음).
 - 코드성 테이블과의 관계는 생략했다.

@@ -55,14 +55,11 @@ class LoanAccountMapperIntegrationTest {
 
     private long memberId;
     private long contractId;
-    private long accountId;
 
     // 만기일시상환·고정금리, 약정 10,000,000원, 12회
     @BeforeEach
     void setUp() {
         memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('debt-test', 'pw', '테스트')");
-        accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
-                + "VALUES (?, '110-000-000001', 0, 1)", memberId);
         long productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
                 + "VALUES (1, 3, '테스트 상품', 1.5)");
         contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
@@ -189,7 +186,7 @@ class LoanAccountMapperIntegrationTest {
     class 상환할_대출_잠금_조회 {
 
         @Test
-        @DisplayName("대출이 있으면 그 대출 id와 상환 계좌 id를 가져온다")
+        @DisplayName("대출이 있으면 그 대출 id와 상환 계좌 은행코드 999, 계좌번호 110-000-000001을 가져온다")
         void 상환_계좌를_가져온다() {
             // given
             long loanAccountId = insertLoanAccount("10000000");
@@ -200,7 +197,8 @@ class LoanAccountMapperIntegrationTest {
             // then
             assertThat(result).hasValueSatisfying(loanAccount -> {
                 assertThat(loanAccount.getLoanAccountId()).isEqualTo(loanAccountId);
-                assertThat(loanAccount.getRepaymentAccountId()).isEqualTo(accountId);
+                assertThat(loanAccount.getRepaymentBankCode()).isEqualTo("999");
+                assertThat(loanAccount.getRepaymentAccountNo()).isEqualTo("110-000-000001");
             });
         }
 
@@ -227,9 +225,9 @@ class LoanAccountMapperIntegrationTest {
         @DisplayName("원금잔액 9,000,000원, 상태 연체(2)인 대출이면 9,000,000원과 OVERDUE를 가져온다")
         void 원금잔액과_상태를_가져온다() {
             // given
-            long loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
-                    + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                    + "VALUES (?, ?, '900-000-000001', ?, 9000000, 10, 0)", contractId, accountId, OVERDUE_STATUS);
+            long loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                    + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                    + "VALUES (?, '999', '110-000-000001', '900-000-000001', ?, 9000000, 10, 0)", contractId, OVERDUE_STATUS);
 
             // when
             Optional<LoanAccountStatusResponse> result = loanAccountMapper.findLoanAccountStatus(loanAccountId);
@@ -250,9 +248,9 @@ class LoanAccountMapperIntegrationTest {
         @DisplayName("판정이 0 정상 → 21 1회 연체 순서로 있으면 계약·상품·회원의 12칸과 연체 상태, 최근 판정 21을 가져온다")
         void 기본_정보와_최근_판정을_가져온다() {
             // given
-            long loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
-                    + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                    + "VALUES (?, ?, '900-000-000001', ?, 9000000, 10, 0)", contractId, accountId, OVERDUE_STATUS);
+            long loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                    + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                    + "VALUES (?, '999', '110-000-000001', '900-000-000001', ?, 9000000, 10, 0)", contractId, OVERDUE_STATUS);
             insertJudgment(loanAccountId, "2026-10-10", 0);
             insertJudgment(loanAccountId, "2026-10-11", 21);
 
@@ -374,9 +372,9 @@ class LoanAccountMapperIntegrationTest {
         }
 
         private long insertLoanAccountWithStatus(long loanContractId, String accountNo, int loanStatusId) {
-            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, loan_status_id, "
-                    + "loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                    + "VALUES (?, ?, ?, ?, 10000000, 10, 0)", loanContractId, accountId, accountNo, loanStatusId);
+            return insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                    + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                    + "VALUES (?, '999', '110-000-000001', ?, ?, 10000000, 10, 0)", loanContractId, accountNo, loanStatusId);
         }
 
         // loan_account는 계약당 1개라 같은 조건의 계약을 하나 더 만든다
@@ -399,12 +397,13 @@ class LoanAccountMapperIntegrationTest {
     class 대출_계좌_저장 {
 
         @Test
-        @DisplayName("계좌번호 900-000-000123, 정상, 원금잔액 10,000,000원, 납입일 17을 넣으면 만든 id를 채우고 마지막 확정 회차는 0이다")
+        @DisplayName("상환 계좌 999 110-000-000001, 계좌번호 900-000-000123, 정상, 원금잔액 10,000,000원, 납입일 17을 넣으면 만든 id를 채우고 마지막 확정 회차는 0이다")
         void 넣은_값을_저장하고_마지막_확정_회차는_0이다() {
             // given
             LoanAccountResponse loanAccount = LoanAccountResponse.builder()
                     .loanContractId(contractId)
-                    .repaymentAccountId(accountId)
+                    .repaymentBankCode("999")
+                    .repaymentAccountNo("110-000-000001")
                     .accountNo("900-000-000123")
                     .loanStatusId(LoanStatus.NORMAL)
                     .loanPrincipalBalance(new BigDecimal("10000000"))
@@ -416,11 +415,12 @@ class LoanAccountMapperIntegrationTest {
 
             // then
             assertThat(loanAccount.getLoanAccountId()).isNotNull();
-            Map<String, Object> row = jdbcTemplate.queryForMap("SELECT loan_contract_id, repayment_account_id, account_no, "
+            Map<String, Object> row = jdbcTemplate.queryForMap("SELECT loan_contract_id, repayment_bank_code, repayment_account_no, account_no, "
                     + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no "
                     + "FROM loan_account WHERE loan_account_id = ?", loanAccount.getLoanAccountId());
             assertThat(((Number) row.get("loan_contract_id")).longValue()).isEqualTo(contractId);
-            assertThat(((Number) row.get("repayment_account_id")).longValue()).isEqualTo(accountId);
+            assertThat(row.get("repayment_bank_code")).isEqualTo("999");
+            assertThat(row.get("repayment_account_no")).isEqualTo("110-000-000001");
             assertThat(row.get("account_no")).isEqualTo("900-000-000123");
             assertThat(row.get("loan_status_id")).isEqualTo(NORMAL_STATUS);
             assertThat((BigDecimal) row.get("loan_principal_balance")).isEqualByComparingTo("10000000");
@@ -430,9 +430,9 @@ class LoanAccountMapperIntegrationTest {
     }
 
     private long insertLoanAccount(String principalBalance) {
-        return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, loan_status_id, "
-                + "loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                + "VALUES (?, ?, '900-000-000001', 1, ?, 10, 0)", contractId, accountId, new BigDecimal(principalBalance));
+        return insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                + "VALUES (?, '999', '110-000-000001', '900-000-000001', 1, ?, 10, 0)", contractId, new BigDecimal(principalBalance));
     }
 
     private long insertSchedule(long loanAccountId, int installmentNo, int statusId, String interest, String paidInterest) {

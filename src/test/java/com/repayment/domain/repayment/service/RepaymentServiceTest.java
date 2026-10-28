@@ -11,20 +11,15 @@ import com.repayment.domain.repayment.dto.response.RepaymentEligibilityResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentResultResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentTargetResponse;
-import com.repayment.domain.repayment.exception.CollectionAccountNotFoundException;
 import com.repayment.domain.repayment.exception.NothingToRepayException;
 import com.repayment.domain.repayment.mapper.RepaymentMapper;
 import com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse;
 import com.repayment.domain.schedule.mapper.RepaymentScheduleMapper;
 import com.repayment.domain.schedule.service.RepaymentScheduleJudgmentService;
-import com.repayment.domain.transfer.exception.InsufficientBalanceException;
-import com.repayment.domain.transfer.mapper.AccountMapper;
-import com.repayment.domain.transfer.service.InternalTransferService;
 import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.LoanStatus;
 import com.repayment.global.code.RepaymentChannel;
 import com.repayment.global.code.RepaymentTargetType;
-import com.repayment.global.config.RepaymentProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -62,10 +57,7 @@ import static org.mockito.Mockito.inOrder;
 class RepaymentServiceTest {
 
     private static final long LOAN_ACCOUNT_ID = 10L;
-    private static final long REPAYMENT_ACCOUNT_ID = 30L;
-    private static final long COLLECTION_ACCOUNT_ID = 1L;
     private static final long REPAYMENT_ID = 500L;
-    private static final String COLLECTION_ACCOUNT_NO = "100-000-000001";
     private static final BigDecimal AMOUNT = new BigDecimal("30000");
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 16, 14, 30, 15, 789_000_000);
     private static final LocalDateTime PAID_AT = LocalDateTime.of(2026, 10, 16, 14, 30, 15);
@@ -75,12 +67,6 @@ class RepaymentServiceTest {
 
     @Mock
     private RepaymentEligibilityService repaymentEligibilityService;
-
-    @Mock
-    private AccountMapper accountMapper;
-
-    @Mock
-    private InternalTransferService internalTransferService;
 
     @Mock
     private RepaymentMapper repaymentMapper;
@@ -123,12 +109,10 @@ class RepaymentServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(NOW.atZone(ZoneId.of("Asia/Seoul")).toInstant(), ZoneId.of("Asia/Seoul"));
-        repaymentService = new RepaymentService(repaymentEligibilityService, accountMapper, internalTransferService,
-                repaymentMapper, installmentAllocationService, accelerationAllocationService,
-                maturityOverdueAllocationService, repaymentScheduleMapper, repaymentScheduleJudgmentService,
+        repaymentService = new RepaymentService(repaymentEligibilityService, repaymentMapper,
+                installmentAllocationService, accelerationAllocationService, maturityOverdueAllocationService, repaymentScheduleMapper, repaymentScheduleJudgmentService,
                 delinquencyResolutionService, loanStatusJudgmentService, loanStatusChangeService,
-                loanAccountMapper, loanStatusJudgmentMapper, repayableAmountService,
-                new RepaymentProperties(COLLECTION_ACCOUNT_NO, "100-000-000002"), clock);
+                loanAccountMapper, loanStatusJudgmentMapper, repayableAmountService, clock);
     }
 
     @Nested
@@ -141,25 +125,22 @@ class RepaymentServiceTest {
         @BeforeEach
         void setUp() {
             givenEligible(LoanJudgmentStatus.NORMAL);
-            givenCollectionAccount();
             givenRepaymentInserted();
             given(repaymentScheduleMapper.findJudgmentTargets(LOAN_ACCOUNT_ID)).willReturn(List.of(first, second));
             givenResult("9000000", LoanStatus.NORMAL, LoanJudgmentStatus.NORMAL, "10000");
         }
 
         @Test
-        @DisplayName("확인 → 이체 → 기록 → 회차 충당 → 회차 2개 판정 → 해소 → 상태 판정 → 상태 변화 처리 → 결과 조회 순서로 부른다")
+        @DisplayName("확인 → 기록 → 회차 충당 → 회차 2개 판정 → 해소 → 상태 판정 → 상태 변화 처리 → 결과 조회 순서로 부른다")
         void 일곱_단계_뒤에_결과를_조회한다() {
             // when
             repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER);
 
             // then
-            InOrder inOrder = inOrder(repaymentEligibilityService, internalTransferService, repaymentMapper,
+            InOrder inOrder = inOrder(repaymentEligibilityService, repaymentMapper,
                     installmentAllocationService, repaymentScheduleJudgmentService, delinquencyResolutionService,
                     loanStatusJudgmentService, loanStatusChangeService, loanAccountMapper, repayableAmountService);
             then(repaymentEligibilityService).should(inOrder).check(LOAN_ACCOUNT_ID, AMOUNT, TODAY);
-            then(internalTransferService).should(inOrder)
-                    .transfer(any(), any(), any(), anyString());
             then(repaymentMapper).should(inOrder).insertRepayment(any());
             then(installmentAllocationService).should(inOrder)
                     .allocate(REPAYMENT_ID, LOAN_ACCOUNT_ID, AMOUNT, TARGETS);
@@ -173,26 +154,21 @@ class RepaymentServiceTest {
         }
 
         @Test
-        @DisplayName("상환 계좌에서 수납 계좌로 30,000원을 이체하고, 같은 UUID 거래번호와 새 UUID 요청 키, 넘긴 채널(고객 상환)로 기록을 남긴다")
-        void 이체와_기록이_같은_거래번호와_시각을_쓴다() {
+        @DisplayName("30,000원을 UUID 거래번호와 그와 다른 UUID 요청 키, 넘긴 채널(고객 상환)로 기록한다")
+        void 거래번호와_요청_키를_새로_만들어_기록한다() {
             // when
             repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER);
 
             // then
-            ArgumentCaptor<String> transactionNo = ArgumentCaptor.forClass(String.class);
-            then(internalTransferService).should()
-                    .transfer(eq(REPAYMENT_ACCOUNT_ID), eq(COLLECTION_ACCOUNT_ID), eq(AMOUNT), transactionNo.capture());
-            assertThat(UUID.fromString(transactionNo.getValue()).toString()).isEqualTo(transactionNo.getValue());
-
             ArgumentCaptor<RepaymentResponse> repayment = ArgumentCaptor.forClass(RepaymentResponse.class);
             then(repaymentMapper).should().insertRepayment(repayment.capture());
             RepaymentResponse recorded = repayment.getValue();
             assertThat(recorded.getLoanAccountId()).isEqualTo(LOAN_ACCOUNT_ID);
             assertThat(recorded.getRepaymentChannelId()).isEqualTo(RepaymentChannel.CUSTOMER);
             assertThat(UUID.fromString(recorded.getRequestKey()).toString()).isEqualTo(recorded.getRequestKey());
-            assertThat(recorded.getRequestKey()).isNotEqualTo(transactionNo.getValue());
+            assertThat(UUID.fromString(recorded.getTransactionNo()).toString()).isEqualTo(recorded.getTransactionNo());
+            assertThat(recorded.getRequestKey()).isNotEqualTo(recorded.getTransactionNo());
             assertThat(recorded.getPaidAmount()).isEqualByComparingTo("30000");
-            assertThat(recorded.getTransactionNo()).isEqualTo(transactionNo.getValue());
         }
 
         @Test
@@ -242,7 +218,6 @@ class RepaymentServiceTest {
         void 상환_뒤_판정으로_남은_금액을_계산한다() {
             // given
             givenEligible(LoanJudgmentStatus.NORMAL);
-            givenCollectionAccount();
             givenRepaymentInserted();
             given(repaymentScheduleMapper.findJudgmentTargets(LOAN_ACCOUNT_ID)).willReturn(List.of());
             givenResult("0", LoanStatus.PAID_OFF, LoanJudgmentStatus.PAID_OFF, "0");
@@ -264,7 +239,6 @@ class RepaymentServiceTest {
 
         @BeforeEach
         void setUp() {
-            givenCollectionAccount();
             givenRepaymentInserted();
             given(repaymentScheduleMapper.findJudgmentTargets(LOAN_ACCOUNT_ID)).willReturn(List.of());
             givenResult("9000000", LoanStatus.NORMAL, LoanJudgmentStatus.NORMAL, "0");
@@ -328,7 +302,6 @@ class RepaymentServiceTest {
         void 스케줄_판정만_건너뛴다() {
             // given
             givenEligible(LoanJudgmentStatus.INSTALLMENT_ACCELERATION);
-            givenCollectionAccount();
             givenRepaymentInserted();
             given(repaymentScheduleMapper.findJudgmentTargets(LOAN_ACCOUNT_ID)).willReturn(List.of());
             givenResult("9000000", LoanStatus.ACCELERATED, LoanJudgmentStatus.INSTALLMENT_ACCELERATION, "500000");
@@ -349,8 +322,8 @@ class RepaymentServiceTest {
     class 실패 {
 
         @Test
-        @DisplayName("상환 가능 확인이 갚을 금액 없음으로 거절하면 같은 예외를 던지고 이체부터 아무것도 부르지 않는다")
-        void 확인에서_거절되면_돈이_움직이지_않는다() {
+        @DisplayName("상환 가능 확인이 갚을 금액 없음으로 거절하면 같은 예외를 던지고 기록부터 아무것도 부르지 않는다")
+        void 확인에서_거절되면_기록하지_않는다() {
             // given
             NothingToRepayException rejected = new NothingToRepayException(LOAN_ACCOUNT_ID);
             given(repaymentEligibilityService.check(LOAN_ACCOUNT_ID, AMOUNT, TODAY)).willThrow(rejected);
@@ -360,52 +333,13 @@ class RepaymentServiceTest {
 
             // then
             assertThat(thrown).isSameAs(rejected);
-            then(accountMapper).shouldHaveNoInteractions();
-            then(internalTransferService).shouldHaveNoInteractions();
             then(repaymentMapper).shouldHaveNoInteractions();
-        }
-
-        @Test
-        @DisplayName("설정한 계좌번호 100-000-000001의 수납 계좌가 없으면 CollectionAccountNotFoundException을 던지고 이체하지 않는다")
-        void 수납_계좌가_없으면_이체하지_않는다() {
-            // given
-            givenEligible(LoanJudgmentStatus.NORMAL);
-            given(accountMapper.findAccountIdByAccountNo(COLLECTION_ACCOUNT_NO)).willReturn(Optional.empty());
-
-            // when
-            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER));
-
-            // then
-            assertThat(thrown).isInstanceOf(CollectionAccountNotFoundException.class);
-            assertThat(((CollectionAccountNotFoundException) thrown).getAccountNo()).isEqualTo(COLLECTION_ACCOUNT_NO);
-            then(internalTransferService).shouldHaveNoInteractions();
-            then(repaymentMapper).shouldHaveNoInteractions();
-        }
-
-        @Test
-        @DisplayName("이체가 잔액 부족으로 실패하면 같은 예외를 던지고 기록·충당을 부르지 않는다")
-        void 이체가_실패하면_기록하지_않는다() {
-            // given
-            givenEligible(LoanJudgmentStatus.NORMAL);
-            givenCollectionAccount();
-            InsufficientBalanceException insufficient =
-                    new InsufficientBalanceException(REPAYMENT_ACCOUNT_ID, new BigDecimal("10000"), AMOUNT);
-            willThrow(insufficient).given(internalTransferService)
-                    .transfer(any(), any(), any(), anyString());
-
-            // when
-            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER));
-
-            // then
-            assertThat(thrown).isSameAs(insufficient);
-            then(repaymentMapper).shouldHaveNoInteractions();
-            then(installmentAllocationService).shouldHaveNoInteractions();
         }
     }
 
     private void givenEligible(LoanJudgmentStatus latestJudgment) {
         given(repaymentEligibilityService.check(LOAN_ACCOUNT_ID, AMOUNT, TODAY)).willReturn(
-                new RepaymentEligibilityResponse(REPAYMENT_ACCOUNT_ID, latestJudgment,
+                new RepaymentEligibilityResponse("999", "110-123-456789", latestJudgment,
                         new RepayableAmountResponse(AMOUNT, TARGETS)));
     }
 
@@ -417,10 +351,6 @@ class RepaymentServiceTest {
         given(loanStatusJudgmentMapper.findLatestJudgmentStatus(LOAN_ACCOUNT_ID)).willReturn(Optional.of(latestJudgment));
         given(repayableAmountService.calculate(LOAN_ACCOUNT_ID, latestJudgment))
                 .willReturn(new RepayableAmountResponse(new BigDecimal(repayableAmount), List.of()));
-    }
-
-    private void givenCollectionAccount() {
-        given(accountMapper.findAccountIdByAccountNo(COLLECTION_ACCOUNT_NO)).willReturn(Optional.of(COLLECTION_ACCOUNT_ID));
     }
 
     // MyBatis가 INSERT 뒤 생성된 id를 DTO에 채우는 것을 흉내 낸다.
