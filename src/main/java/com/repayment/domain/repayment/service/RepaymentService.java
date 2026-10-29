@@ -65,7 +65,7 @@ public class RepaymentService {
         RepaymentEligibilityResponse eligibility =
                 repaymentEligibilityService.check(loanAccountId, amount, businessDate);
 
-        // TODO(firmbanking): 상환 계좌에서 수납 계좌(repayment.collection-*)로 출금 이체 전문을 보내고,
+        // TODO(firmbanking): 상환 계좌에서 수납 계좌(repayment.collection-*)로 출금 이체를 호출하고,
         //  응답의 거래번호를 transactionNo로 쓴다. 외부 이체는 DB 롤백으로 되돌릴 수 없으므로
         //  호출 순서와 실패 처리를 함께 정한다.
         String transactionNo = UUID.randomUUID().toString();

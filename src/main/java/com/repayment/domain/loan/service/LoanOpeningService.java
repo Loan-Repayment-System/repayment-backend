@@ -54,7 +54,7 @@ public class LoanOpeningService {
         if (totalInstallments < 1) {
             throw new InvalidTotalInstallmentsException(totalInstallments);
         }
-        // TODO(firmbanking): 예금주 조회 전문으로 상환 계좌가 회원 본인 계좌인지 확인한다.
+        // TODO(firmbanking): 예금주 조회 호출로 상환 계좌가 회원 본인 계좌인지 확인한다.
 
         LocalDate contractDate = LocalDate.now(clock);
         BigDecimal baseRate = baseRateHistoryMapper.findLatestRateBefore(contractDate)
@@ -86,7 +86,7 @@ public class LoanOpeningService {
         repaymentScheduleMapper.insertScheduledInstallments(loanAccount.getLoanAccountId(),
                 scheduledInstallments(contractDate, totalInstallments));
 
-        // TODO(firmbanking): 지급 계좌(repayment.disbursement-*)에서 상환 계좌로 대출금을 보내는 이체 전문.
+        // TODO(firmbanking): 지급 계좌(repayment.disbursement-*)에서 상환 계좌로 대출금 지급 이체를 호출한다.
         //  외부 이체는 DB 롤백으로 되돌릴 수 없으므로 호출 순서와 실패 처리를 함께 정한다.
         return loanAccount.getLoanAccountId();
     }
