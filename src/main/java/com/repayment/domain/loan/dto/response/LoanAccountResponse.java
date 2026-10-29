@@ -19,7 +19,8 @@ public class LoanAccountResponse {
 
     private Long loanAccountId;
     private Long loanContractId;
-    private Long repaymentAccountId;
+    private String repaymentBankCode;
+    private String repaymentAccountNo;
     private String accountNo;
     private LoanStatus loanStatusId;
     private BigDecimal loanPrincipalBalance;

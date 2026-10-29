@@ -6,7 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 상환할 때 잠그고 읽는 대출. repaymentAccountId는 이체 출금 계좌에 쓴다.
+ * 상환할 때 잠그고 읽는 대출. 상환 계좌는 출금 이체에 쓴다.
  */
 @Getter
 @NoArgsConstructor
@@ -15,5 +15,6 @@ import lombok.NoArgsConstructor;
 public class RepaymentLoanAccountResponse {
 
     private Long loanAccountId;
-    private Long repaymentAccountId;
+    private String repaymentBankCode;
+    private String repaymentAccountNo;
 }

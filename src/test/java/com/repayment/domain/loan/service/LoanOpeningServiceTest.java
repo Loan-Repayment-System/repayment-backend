@@ -4,20 +4,15 @@ import com.repayment.domain.baserate.exception.BaseRateNotFoundException;
 import com.repayment.domain.baserate.mapper.BaseRateHistoryMapper;
 import com.repayment.domain.loan.dto.response.LoanAccountResponse;
 import com.repayment.domain.loan.dto.response.LoanContractResponse;
-import com.repayment.domain.loan.exception.DisbursementAccountNotFoundException;
 import com.repayment.domain.loan.exception.InvalidContractPrincipalException;
 import com.repayment.domain.loan.exception.InvalidTotalInstallmentsException;
-import com.repayment.domain.loan.exception.RepaymentAccountNotOwnedException;
 import com.repayment.domain.loan.mapper.LoanAccountMapper;
 import com.repayment.domain.loan.mapper.LoanContractMapper;
 import com.repayment.domain.product.exception.LoanProductNotFoundException;
 import com.repayment.domain.product.mapper.LoanProductMapper;
 import com.repayment.domain.schedule.dto.response.ScheduledInstallmentResponse;
 import com.repayment.domain.schedule.mapper.RepaymentScheduleMapper;
-import com.repayment.domain.transfer.mapper.AccountMapper;
-import com.repayment.domain.transfer.service.InternalTransferService;
 import com.repayment.global.code.LoanStatus;
-import com.repayment.global.config.RepaymentProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -34,7 +29,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,7 +36,6 @@ import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -55,19 +48,15 @@ class LoanOpeningServiceTest {
 
     private static final long MEMBER_ID = 1L;
     private static final long PRODUCT_ID = 2L;
-    private static final long REPAYMENT_ACCOUNT_ID = 30L;
-    private static final long DISBURSEMENT_ACCOUNT_ID = 9L;
+    private static final String REPAYMENT_BANK_CODE = "999";
+    private static final String REPAYMENT_ACCOUNT_NO = "110-123-456789";
     private static final long CONTRACT_ID = 123L;
     private static final long LOAN_ACCOUNT_ID = 456L;
-    private static final String DISBURSEMENT_ACCOUNT_NO = "100-000-000002";
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 17);
     private static final BigDecimal PRINCIPAL = new BigDecimal("12000000");
 
     @Mock
     private LoanProductMapper loanProductMapper;
-
-    @Mock
-    private AccountMapper accountMapper;
 
     @Mock
     private BaseRateHistoryMapper baseRateHistoryMapper;
@@ -81,9 +70,6 @@ class LoanOpeningServiceTest {
     @Mock
     private RepaymentScheduleMapper repaymentScheduleMapper;
 
-    @Mock
-    private InternalTransferService internalTransferService;
-
     @Nested
     @DisplayName("개설할 수 없는 요청을 검사할 때")
     class 검사 {
@@ -95,7 +81,7 @@ class LoanOpeningServiceTest {
             given(loanProductMapper.findAdditionalRateById(PRODUCT_ID)).willReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 12))
+            assertThatThrownBy(() -> serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, PRINCIPAL, 12))
                     .isInstanceOf(LoanProductNotFoundException.class);
             thenNothingCreated();
         }
@@ -107,7 +93,7 @@ class LoanOpeningServiceTest {
             givenProduct();
 
             // when & then
-            assertThatThrownBy(() -> serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, BigDecimal.ZERO, 12))
+            assertThatThrownBy(() -> serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, BigDecimal.ZERO, 12))
                     .isInstanceOf(InvalidContractPrincipalException.class);
         }
 
@@ -119,7 +105,7 @@ class LoanOpeningServiceTest {
 
             // when & then
             assertThatThrownBy(() -> serviceAt(TODAY)
-                    .open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, new BigDecimal("1000.5"), 12))
+                    .open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, new BigDecimal("1000.5"), 12))
                     .isInstanceOf(InvalidContractPrincipalException.class);
         }
 
@@ -130,21 +116,8 @@ class LoanOpeningServiceTest {
             givenProduct();
 
             // when & then
-            assertThatThrownBy(() -> serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 0))
+            assertThatThrownBy(() -> serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, PRINCIPAL, 0))
                     .isInstanceOf(InvalidTotalInstallmentsException.class);
-        }
-
-        @Test
-        @DisplayName("상환 계좌가 회원 1의 계좌가 아니면 RepaymentAccountNotOwnedException을 던지고 아무것도 만들지 않는다")
-        void 남의_계좌는_거절한다() {
-            // given
-            givenProduct();
-            given(accountMapper.existsByAccountIdAndMemberId(REPAYMENT_ACCOUNT_ID, MEMBER_ID)).willReturn(false);
-
-            // when & then
-            assertThatThrownBy(() -> serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 12))
-                    .isInstanceOf(RepaymentAccountNotOwnedException.class);
-            thenNothingCreated();
         }
 
         @Test
@@ -152,27 +125,12 @@ class LoanOpeningServiceTest {
         void 기준금리가_없으면_거절한다() {
             // given
             givenProduct();
-            givenOwnedAccount();
             given(baseRateHistoryMapper.findLatestRateBefore(TODAY)).willReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 12))
+            assertThatThrownBy(() -> serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, PRINCIPAL, 12))
                     .isInstanceOf(BaseRateNotFoundException.class);
             thenNothingCreated();
-        }
-
-        @Test
-        @DisplayName("지급 계좌 100-000-000002가 없으면 DisbursementAccountNotFoundException을 던진다")
-        void 지급_계좌가_없으면_거절한다() {
-            // given
-            givenProduct();
-            givenOwnedAccount();
-            givenBaseRate(TODAY);
-            given(accountMapper.findAccountIdByAccountNo(DISBURSEMENT_ACCOUNT_NO)).willReturn(Optional.empty());
-
-            // when & then
-            assertThatThrownBy(() -> serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 12))
-                    .isInstanceOf(DisbursementAccountNotFoundException.class);
         }
     }
 
@@ -189,7 +147,7 @@ class LoanOpeningServiceTest {
         @DisplayName("계약은 계약일 10/17, 만기일 2027-10-17, 약정 12,000,000원, 기준 3.2%, 가산 1.5%, 12회다")
         void 계약을_만든다() {
             // when
-            serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 12);
+            serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, PRINCIPAL, 12);
 
             // then
             LoanContractResponse contract = captureContract();
@@ -204,10 +162,10 @@ class LoanOpeningServiceTest {
         }
 
         @Test
-        @DisplayName("계약 id 123이면 대출 계좌는 900-000-000123, 상환 계좌 30, 정상, 원금잔액 12,000,000원, 납입일 17이다")
+        @DisplayName("계약 id 123이면 대출 계좌는 900-000-000123, 상환 계좌 999 110-123-456789, 정상, 원금잔액 12,000,000원, 납입일 17이다")
         void 대출_계좌를_만든다() {
             // when
-            serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 12);
+            serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, PRINCIPAL, 12);
 
             // then
             ArgumentCaptor<LoanAccountResponse> captor = ArgumentCaptor.forClass(LoanAccountResponse.class);
@@ -215,7 +173,8 @@ class LoanOpeningServiceTest {
             LoanAccountResponse loanAccount = captor.getValue();
             assertThat(loanAccount.getLoanContractId()).isEqualTo(CONTRACT_ID);
             assertThat(loanAccount.getAccountNo()).isEqualTo("900-000-000123");
-            assertThat(loanAccount.getRepaymentAccountId()).isEqualTo(REPAYMENT_ACCOUNT_ID);
+            assertThat(loanAccount.getRepaymentBankCode()).isEqualTo(REPAYMENT_BANK_CODE);
+            assertThat(loanAccount.getRepaymentAccountNo()).isEqualTo(REPAYMENT_ACCOUNT_NO);
             assertThat(loanAccount.getLoanStatusId()).isEqualTo(LoanStatus.NORMAL);
             assertThat(loanAccount.getLoanPrincipalBalance()).isEqualByComparingTo("12000000");
             assertThat(loanAccount.getMonthlyPaymentDay()).isEqualTo(17);
@@ -225,7 +184,7 @@ class LoanOpeningServiceTest {
         @DisplayName("회차는 1회 2026-11-17부터 12회 2027-10-17까지 매월 17일로 12개를 대출 계좌 456에 만든다")
         void 회차를_만든다() {
             // when
-            serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 12);
+            serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, PRINCIPAL, 12);
 
             // then
             List<ScheduledInstallmentResponse> installments = captureInstallments();
@@ -238,23 +197,10 @@ class LoanOpeningServiceTest {
         }
 
         @Test
-        @DisplayName("지급 계좌 9에서 상환 계좌 30으로 12,000,000원을 UUID 거래번호로 이체한다")
-        void 대출금을_지급한다() {
-            // when
-            serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 12);
-
-            // then
-            ArgumentCaptor<String> transactionNo = ArgumentCaptor.forClass(String.class);
-            then(internalTransferService).should()
-                    .transfer(eq(DISBURSEMENT_ACCOUNT_ID), eq(REPAYMENT_ACCOUNT_ID), eq(PRINCIPAL), transactionNo.capture());
-            assertThat(UUID.fromString(transactionNo.getValue()).toString()).isEqualTo(transactionNo.getValue());
-        }
-
-        @Test
         @DisplayName("만든 대출 계좌 id 456을 돌려준다")
         void 대출_계좌_id를_돌려준다() {
             // when
-            Long result = serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 12);
+            Long result = serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, PRINCIPAL, 12);
 
             // then
             assertThat(result).isEqualTo(LOAN_ACCOUNT_ID);
@@ -273,7 +219,7 @@ class LoanOpeningServiceTest {
             givenOpenable(contractDate);
 
             // when
-            serviceAt(contractDate).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 3);
+            serviceAt(contractDate).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, PRINCIPAL, 3);
 
             // then
             assertThat(captureInstallments())
@@ -296,7 +242,7 @@ class LoanOpeningServiceTest {
             givenOpenable(contractDate);
 
             // when
-            serviceAt(contractDate).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 1);
+            serviceAt(contractDate).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, PRINCIPAL, 1);
 
             // then
             assertThat(captureInstallments())
@@ -312,7 +258,7 @@ class LoanOpeningServiceTest {
             givenOpenable(TODAY);
 
             // when
-            serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_ACCOUNT_ID, PRINCIPAL, 1);
+            serviceAt(TODAY).open(MEMBER_ID, PRODUCT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO, PRINCIPAL, 1);
 
             // then
             List<ScheduledInstallmentResponse> installments = captureInstallments();
@@ -325,17 +271,12 @@ class LoanOpeningServiceTest {
     private LoanOpeningService serviceAt(LocalDate date) {
         ZoneId zone = ZoneId.of("Asia/Seoul");
         Clock clock = Clock.fixed(date.atTime(10, 0).atZone(zone).toInstant(), zone);
-        return new LoanOpeningService(loanProductMapper, accountMapper, baseRateHistoryMapper, loanContractMapper,
-                loanAccountMapper, repaymentScheduleMapper, internalTransferService,
-                new RepaymentProperties("100-000-000001", DISBURSEMENT_ACCOUNT_NO), clock);
+        return new LoanOpeningService(loanProductMapper, baseRateHistoryMapper, loanContractMapper,
+                loanAccountMapper, repaymentScheduleMapper, clock);
     }
 
     private void givenProduct() {
         given(loanProductMapper.findAdditionalRateById(PRODUCT_ID)).willReturn(Optional.of(new BigDecimal("1.5")));
-    }
-
-    private void givenOwnedAccount() {
-        given(accountMapper.existsByAccountIdAndMemberId(REPAYMENT_ACCOUNT_ID, MEMBER_ID)).willReturn(true);
     }
 
     private void givenBaseRate(LocalDate contractDate) {
@@ -345,9 +286,7 @@ class LoanOpeningServiceTest {
     // 모든 검사를 통과하고, INSERT하면 DB처럼 계약 id 123·대출 계좌 id 456을 채운다
     private void givenOpenable(LocalDate contractDate) {
         givenProduct();
-        givenOwnedAccount();
         givenBaseRate(contractDate);
-        given(accountMapper.findAccountIdByAccountNo(DISBURSEMENT_ACCOUNT_NO)).willReturn(Optional.of(DISBURSEMENT_ACCOUNT_ID));
         willAnswer(invocation -> {
             ReflectionTestUtils.setField((Object) invocation.getArgument(0), "loanContractId", CONTRACT_ID);
             return 1;
@@ -375,6 +314,5 @@ class LoanOpeningServiceTest {
         then(loanContractMapper).shouldHaveNoInteractions();
         then(loanAccountMapper).shouldHaveNoInteractions();
         then(repaymentScheduleMapper).should(never()).insertScheduledInstallments(anyLong(), anyList());
-        then(internalTransferService).should(never()).transfer(anyLong(), anyLong(), any(), anyString());
     }
 }

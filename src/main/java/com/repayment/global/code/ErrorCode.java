@@ -34,8 +34,6 @@ public enum ErrorCode {
     LOAN_ALREADY_PAID_OFF(HttpStatus.UNPROCESSABLE_ENTITY, "이미 완제된 대출입니다."),
     INVALID_CONTRACT_PRINCIPAL(HttpStatus.BAD_REQUEST, "약정금액은 1원 이상 원 단위로 입력해 주세요."),
     INVALID_TOTAL_INSTALLMENTS(HttpStatus.BAD_REQUEST, "회차 수는 1 이상으로 입력해 주세요."),
-    REPAYMENT_ACCOUNT_NOT_OWNED(HttpStatus.UNPROCESSABLE_ENTITY, "회원의 계좌가 아닙니다."),
-    DISBURSEMENT_ACCOUNT_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "지급 계좌를 찾지 못했습니다."),
 
     // 대출 상품
     LOAN_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "대출 상품을 찾을 수 없습니다."),
@@ -57,17 +55,12 @@ public enum ErrorCode {
     // 만기 경과
     LOAN_MATURITY_OVERDUE_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "만기 경과 전환 기록을 찾지 못했습니다."),
 
-    // 이체
-    ACCOUNT_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "계좌를 찾지 못했습니다."),
-    INSUFFICIENT_BALANCE(HttpStatus.UNPROCESSABLE_ENTITY, "출금 계좌의 잔액이 부족합니다."),
-
     // 상환
     INVALID_REPAYMENT_AMOUNT(HttpStatus.BAD_REQUEST, "상환 금액은 1원 이상 원 단위로 입력해 주세요."),
     NOTHING_TO_REPAY(HttpStatus.UNPROCESSABLE_ENTITY, "지금 갚을 금액이 없습니다."),
     REPAYMENT_EXCEEDS_REPAYABLE_AMOUNT(HttpStatus.UNPROCESSABLE_ENTITY, "상환 금액이 갚을 금액보다 많습니다."),
     REPAYMENT_TARGET_TYPE_MISMATCH(HttpStatus.INTERNAL_SERVER_ERROR, "충당할 수 없는 종류의 대상이 있습니다."),
     REPAYMENT_AMOUNT_LEFT_OVER(HttpStatus.INTERNAL_SERVER_ERROR, "충당하고 남은 금액이 있습니다."),
-    COLLECTION_ACCOUNT_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "수납 계좌를 찾지 못했습니다."),
     REPAYMENT_UNAVAILABLE_DURING_CLOSING(HttpStatus.SERVICE_UNAVAILABLE, "일마감 처리 중이라 지금은 상환할 수 없습니다. 잠시 후 다시 시도해 주세요."),
     ;
 

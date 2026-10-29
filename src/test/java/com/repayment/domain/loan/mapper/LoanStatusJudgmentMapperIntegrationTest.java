@@ -44,7 +44,6 @@ class LoanStatusJudgmentMapperIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     private long memberId;
-    private long accountId;
     private long productId;
     private long loanAccountId;
 
@@ -52,8 +51,6 @@ class LoanStatusJudgmentMapperIntegrationTest {
     @BeforeEach
     void setUp() {
         memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('judgment-test', 'pw', '테스트')");
-        accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
-                + "VALUES (?, '110-000-000002', 0, 1)", memberId);
         productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
                 + "VALUES (1, 2, '테스트 상품', 1.5)");
         loanAccountId = insertLoanAccount("900-000-000002");
@@ -214,9 +211,9 @@ class LoanStatusJudgmentMapperIntegrationTest {
         long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
                 + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
                 + "VALUES (?, ?, '2026-06-30', '2027-06-30', 30000000, 1.5, 4.5, 12)", productId, memberId);
-        return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
-                + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                + "VALUES (?, ?, ?, 1, 30000000, 10, 0)", contractId, accountId, accountNo);
+        return insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                + "VALUES (?, '999', '110-000-000001', ?, 1, 30000000, 10, 0)", contractId, accountNo);
     }
 
     private void insertJudgment(String businessDate, int statusId) {

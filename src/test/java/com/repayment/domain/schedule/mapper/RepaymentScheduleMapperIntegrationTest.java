@@ -46,7 +46,6 @@ class RepaymentScheduleMapperIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     private long memberId;
-    private long accountId;
     private long productId;
     private long loanAccountId;
     private long firstScheduleId;
@@ -57,16 +56,14 @@ class RepaymentScheduleMapperIntegrationTest {
     @BeforeEach
     void setUp() {
         memberId = insert("INSERT INTO member (login_id, password, name) VALUES ('schedule-test', 'pw', '테스트')");
-        accountId = insert("INSERT INTO account (member_id, account_no, balance, account_status_id) "
-                + "VALUES (?, '110-000-000001', 0, 1)", memberId);
         productId = insert("INSERT INTO loan_product (interest_type_id, repayment_method_id, name, additional_rate) "
                 + "VALUES (1, 2, '테스트 상품', 1.5)");
         long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
                 + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
                 + "VALUES (?, ?, '2026-09-10', '2027-09-10', 12000000, 1.5, 4.5, 12)", productId, memberId);
-        loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
-                + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                + "VALUES (?, ?, '900-000-000001', 1, 12000000, 10, 2)", contractId, accountId);
+        loanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                + "VALUES (?, '999', '110-000-000001', '900-000-000001', 1, 12000000, 10, 2)", contractId);
         firstScheduleId = insertConfirmedSchedule(1, "2026-10-10", "972797", "60000");
         secondScheduleId = insertConfirmedSchedule(2, "2026-11-10", "977661", "55136");
         thirdScheduleId = insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, "
@@ -154,10 +151,10 @@ class RepaymentScheduleMapperIntegrationTest {
             long otherContractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, "
                     + "maturity_date, contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
                     + "VALUES (?, ?, '2026-09-10', '2027-09-10', 12000000, 1.5, 4.5, 12)", productId, memberId);
-            long otherLoanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, "
+            long otherLoanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
                     + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, "
-                    + "last_confirmed_installment_no) VALUES (?, ?, '900-000-000002', 2, 12000000, 10, 1)",
-                    otherContractId, accountId);
+                    + "last_confirmed_installment_no) VALUES (?, '999', '110-000-000001', '900-000-000002', 2, 12000000, 10, 1)",
+                    otherContractId);
             insert("INSERT INTO repayment_schedule (loan_account_id, installment_no, repayment_schedule_status_id, "
                     + "scheduled_date, scheduled_principal, scheduled_interest, applied_base_rate, "
                     + "applied_additional_rate, confirmed_at) VALUES (?, 1, 4, '2026-10-10', 972797, 60000, 4.5, 1.5, NOW())",
@@ -238,9 +235,9 @@ class RepaymentScheduleMapperIntegrationTest {
             long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
                     + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
                     + "VALUES (?, ?, '2026-10-10', '2027-03-10', 5000000, 1.5, 4.5, 5)", productId, memberId);
-            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
-                    + "loan_status_id, loan_principal_balance, monthly_payment_day) "
-                    + "VALUES (?, ?, ?, 1, 5000000, 10)", contractId, accountId, accountNo);
+            return insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                    + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day) "
+                    + "VALUES (?, '999', '110-000-000001', ?, 1, 5000000, 10)", contractId, accountNo);
         }
 
         private long insertSchedule(long targetLoanAccountId, int installmentNo, RepaymentScheduleStatus status,
@@ -355,9 +352,9 @@ class RepaymentScheduleMapperIntegrationTest {
                     + "lc.contract_additional_rate, lc.contract_base_rate, lc.total_installments "
                     + "FROM loan_contract lc JOIN loan_account la ON la.loan_contract_id = lc.loan_contract_id "
                     + "WHERE la.loan_account_id = ?", loanAccountId);
-            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, loan_status_id, "
-                    + "loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                    + "SELECT ?, repayment_account_id, '900-000-000009', 1, 12000000, 10, 0 "
+            return insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                    + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                    + "SELECT ?, repayment_bank_code, repayment_account_no, '900-000-000009', 1, 12000000, 10, 0 "
                     + "FROM loan_account WHERE loan_account_id = ?", contractId, loanAccountId);
         }
 
@@ -439,9 +436,9 @@ class RepaymentScheduleMapperIntegrationTest {
             long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
                     + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
                     + "VALUES (?, ?, '2026-10-17', '2027-01-17', 3000000, 1.5, 3.2, 3)", productId, memberId);
-            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
-                    + "loan_status_id, loan_principal_balance, monthly_payment_day) "
-                    + "VALUES (?, ?, '900-000-000999', 1, 3000000, 17)", contractId, accountId);
+            return insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                    + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day) "
+                    + "VALUES (?, '999', '110-000-000001', '900-000-000999', 1, 3000000, 17)", contractId);
         }
     }
 
@@ -505,9 +502,9 @@ class RepaymentScheduleMapperIntegrationTest {
             long contractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, maturity_date, "
                     + "contract_principal, contract_additional_rate, contract_base_rate, total_installments) "
                     + "VALUES (?, ?, '2026-08-18', '2027-08-18', 12000000, 2.0, 3.5, 12)", productId, memberId);
-            return insert("INSERT INTO loan_account (loan_contract_id, repayment_account_id, account_no, "
-                    + "loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
-                    + "VALUES (?, ?, '900-000-000777', 2, 11025000, 18, 2)", contractId, accountId);
+            return insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, repayment_account_no, "
+                    + "account_no, loan_status_id, loan_principal_balance, monthly_payment_day, last_confirmed_installment_no) "
+                    + "VALUES (?, '999', '110-000-000001', '900-000-000777', 2, 11025000, 18, 2)", contractId);
         }
 
         // 납부한 원금·이자는 이자가 0원이 아니면 모두 낸 것으로 넣는다

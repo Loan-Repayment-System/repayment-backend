@@ -66,7 +66,8 @@ public class RepaymentEligibilityService {
         if (amount.compareTo(totalAmount) > 0) {
             throw new RepaymentExceedsRepayableAmountException(loanAccountId, amount, totalAmount);
         }
-        return new RepaymentEligibilityResponse(loanAccount.getRepaymentAccountId(), latestJudgment, repayableAmount);
+        return new RepaymentEligibilityResponse(loanAccount.getRepaymentBankCode(),
+                loanAccount.getRepaymentAccountNo(), latestJudgment, repayableAmount);
     }
 
     // 1원 이상이고 원 미만 자릿수가 없어야 한다. 1000.00처럼 0으로 끝나는 소수 자리는 원 단위로 본다.
