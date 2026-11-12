@@ -5,9 +5,11 @@
 -- ============================================================
 
 CREATE TABLE telegram_no_sequence (
-    send_date        DATE NOT NULL,
-    last_telegram_no INT NOT NULL,
-    created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (send_date)
+    telegram_no_sequence_id BIGINT NOT NULL AUTO_INCREMENT,
+    send_date               DATE NOT NULL,
+    last_telegram_no        INT NOT NULL,
+    created_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (telegram_no_sequence_id),
+    UNIQUE KEY uq_telegram_no_sequence_send_date (send_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
