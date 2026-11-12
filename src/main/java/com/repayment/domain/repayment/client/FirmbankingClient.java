@@ -5,14 +5,7 @@ import com.repayment.global.config.RepaymentProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.math.BigDecimal;
-import java.net.InetSocketAddress;
-import java.net.ProtocolException;
-import java.net.Socket;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -21,18 +14,13 @@ import java.util.Arrays;
 
 /**
  * 펌뱅킹에 집금이체(2000/200) 전문을 보내 고객 상환 계좌의 돈을 캐피탈 수납 계좌로 옮긴다.
- * 연결 하나에 길이 헤더 0300 + 본문 300바이트를 보내고, 같은 형식의 응답을 받는다.
- *
- * 응답을 받으면 응답코드를 그대로 돌려준다. 연결 실패·응답 시간 초과·응답 없이 끊김·응답 형식 오류는
- * 이체가 됐는지 알 수 없으므로 UncheckedIOException을 던진다.
+ * 응답을 받으면 응답코드를 그대로 돌려준다. 응답을 받지 못하면 FirmbankingTelegramSender의 예외가 그대로 나간다.
  */
 @Component
 @RequiredArgsConstructor
 public class FirmbankingClient {
 
     private static final Charset CHARSET = Charset.forName("EUC-KR");
-    private static final int TELEGRAM_LENGTH = 300;
-    private static final byte[] LENGTH_HEADER = "0300".getBytes(StandardCharsets.US_ASCII);
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HHmmss");
@@ -59,6 +47,7 @@ public class FirmbankingClient {
     private static final Field FEE = new Field(174, 9);
     private static final Field MEMO_FIELD = new Field(183, 14);
 
+    private final FirmbankingTelegramSender firmbankingTelegramSender;
     private final FirmbankingProperties firmbankingProperties;
     private final RepaymentProperties repaymentProperties;
 
@@ -69,13 +58,13 @@ public class FirmbankingClient {
     public String collect(LocalDateTime sentAt, int telegramNo, String withdrawalBankCode,
                           String withdrawalAccountNo, BigDecimal amount) {
         byte[] request = collectionTelegram(sentAt, telegramNo, withdrawalBankCode, withdrawalAccountNo, amount);
-        byte[] response = exchange(request);
+        byte[] response = firmbankingTelegramSender.send(request);
         return readAN(response, RESPONSE_CODE);
     }
 
     private byte[] collectionTelegram(LocalDateTime sentAt, int telegramNo, String withdrawalBankCode,
                                       String withdrawalAccountNo, BigDecimal amount) {
-        byte[] bytes = new byte[TELEGRAM_LENGTH];
+        byte[] bytes = new byte[FirmbankingTelegramSender.TELEGRAM_LENGTH];
         Arrays.fill(bytes, (byte) ' ');
         writeAN(bytes, COMPANY_NO, firmbankingProperties.companyNo());
         writeN(bytes, BANK_CODE, withdrawalBankCode);
@@ -94,35 +83,6 @@ public class FirmbankingClient {
         writeN(bytes, FEE, "0");
         writeAN(bytes, MEMO_FIELD, MEMO);
         return bytes;
-    }
-
-    /**
-     * 응답 시간은 read 한 번마다 적용한다. 펌뱅킹은 응답을 한 번에 쓰고 연결을 닫는다.
-     */
-    private byte[] exchange(byte[] request) {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(firmbankingProperties.host(), firmbankingProperties.port()),
-                    (int) firmbankingProperties.connectTimeout().toMillis());
-            socket.setSoTimeout((int) firmbankingProperties.readTimeout().toMillis());
-
-            OutputStream out = socket.getOutputStream();
-            out.write(LENGTH_HEADER);
-            out.write(request);
-            out.flush();
-
-            DataInputStream in = new DataInputStream(socket.getInputStream());
-            byte[] header = new byte[LENGTH_HEADER.length];
-            in.readFully(header);
-            if (!Arrays.equals(header, LENGTH_HEADER)) {
-                throw new ProtocolException(
-                        "응답 길이 헤더가 0300이 아니다: " + new String(header, StandardCharsets.US_ASCII));
-            }
-            byte[] response = new byte[TELEGRAM_LENGTH];
-            in.readFully(response);
-            return response;
-        } catch (IOException e) {
-            throw new UncheckedIOException("펌뱅킹 집금 전문 송수신 실패", e);
-        }
     }
 
     /**
