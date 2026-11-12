@@ -62,6 +62,10 @@ public enum ErrorCode {
     REPAYMENT_TARGET_TYPE_MISMATCH(HttpStatus.INTERNAL_SERVER_ERROR, "충당할 수 없는 종류의 대상이 있습니다."),
     REPAYMENT_AMOUNT_LEFT_OVER(HttpStatus.INTERNAL_SERVER_ERROR, "충당하고 남은 금액이 있습니다."),
     REPAYMENT_UNAVAILABLE_DURING_CLOSING(HttpStatus.SERVICE_UNAVAILABLE, "일마감 처리 중이라 지금은 상환할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+    INSUFFICIENT_BALANCE(HttpStatus.UNPROCESSABLE_ENTITY, "상환 계좌의 잔액이 부족합니다."),
+    WITHDRAWAL_CONSENT_NOT_REGISTERED(HttpStatus.UNPROCESSABLE_ENTITY, "상환 계좌의 출금 동의가 등록되어 있지 않습니다."),
+    WITHDRAWAL_ACCOUNT_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY, "상환 계좌를 찾을 수 없습니다."),
+    COLLECTION_FAILED(HttpStatus.BAD_GATEWAY, "상환금 출금에 실패했습니다. 잠시 후 다시 시도해 주세요."),
     ;
 
     private final HttpStatus status;
