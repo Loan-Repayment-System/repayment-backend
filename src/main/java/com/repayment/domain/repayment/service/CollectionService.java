@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -28,30 +29,27 @@ public class CollectionService {
 
     private final FirmbankingClient firmbankingClient;
 
-    /**
-     * transactionNo는 예외에 담아 원인을 추적하는 데만 쓴다.
-     */
-    public void collect(String transactionNo, LocalDateTime sentAt, int telegramNo, String withdrawalBankCode,
-                        String withdrawalAccountNo, BigDecimal amount) {
-        String responseCode = requestCollection(transactionNo, sentAt, telegramNo, withdrawalBankCode,
-                withdrawalAccountNo, amount);
+    public void collect(LocalDateTime sentAt, int telegramNo, String withdrawalBankCode, String withdrawalAccountNo,
+                        BigDecimal amount) {
+        String responseCode = requestCollection(sentAt, telegramNo, withdrawalBankCode, withdrawalAccountNo, amount);
+        LocalDate sendDate = sentAt.toLocalDate();
         switch (responseCode) {
             case SUCCESS -> {
             }
-            case WITHDRAWAL_ACCOUNT_NOT_FOUND -> throw new WithdrawalAccountNotFoundException(transactionNo);
-            case INSUFFICIENT_BALANCE -> throw new InsufficientBalanceException(transactionNo);
-            case CONSENT_NOT_REGISTERED -> throw new WithdrawalConsentNotRegisteredException(transactionNo);
-            default -> throw new CollectionFailedException(transactionNo, responseCode);
+            case WITHDRAWAL_ACCOUNT_NOT_FOUND -> throw new WithdrawalAccountNotFoundException(sendDate, telegramNo);
+            case INSUFFICIENT_BALANCE -> throw new InsufficientBalanceException(sendDate, telegramNo);
+            case CONSENT_NOT_REGISTERED -> throw new WithdrawalConsentNotRegisteredException(sendDate, telegramNo);
+            default -> throw new CollectionFailedException(sendDate, telegramNo, responseCode);
         }
     }
 
-    private String requestCollection(String transactionNo, LocalDateTime sentAt, int telegramNo,
-                                     String withdrawalBankCode, String withdrawalAccountNo, BigDecimal amount) {
+    private String requestCollection(LocalDateTime sentAt, int telegramNo, String withdrawalBankCode,
+                                     String withdrawalAccountNo, BigDecimal amount) {
         try {
             return firmbankingClient.requestCollection(sentAt, telegramNo, withdrawalBankCode, withdrawalAccountNo,
                     amount);
         } catch (UncheckedIOException e) {
-            throw new CollectionFailedException(transactionNo, e);
+            throw new CollectionFailedException(sentAt.toLocalDate(), telegramNo, e);
         }
     }
 }

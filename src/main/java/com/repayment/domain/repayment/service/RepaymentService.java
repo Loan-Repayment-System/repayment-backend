@@ -71,7 +71,7 @@ public class RepaymentService {
 
         int telegramNo = telegramNoService.next(businessDate);
         String transactionNo = transactionNo(businessDate, telegramNo);
-        collectionService.collect(transactionNo, now, telegramNo, eligibility.getRepaymentBankCode(),
+        collectionService.collect(now, telegramNo, eligibility.getRepaymentBankCode(),
                 eligibility.getRepaymentAccountNo(), amount);
 
         RepaymentResponse repayment = RepaymentResponse.builder()

@@ -27,7 +27,6 @@ import static org.mockito.BDDMockito.then;
 @DisplayName("집금")
 class CollectionServiceTest {
 
-    private static final String TRANSACTION_NO = "20261016000001";
     private static final LocalDateTime SENT_AT = LocalDateTime.of(2026, 10, 16, 14, 30, 15);
     private static final int TELEGRAM_NO = 1;
     private static final String BANK_CODE = "999";
@@ -143,6 +142,6 @@ class CollectionServiceTest {
     }
 
     private void collect() {
-        collectionService.collect(TRANSACTION_NO, SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT);
+        collectionService.collect(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT);
     }
 }

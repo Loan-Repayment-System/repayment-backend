@@ -157,7 +157,7 @@ class RepaymentServiceTest {
                     loanAccountMapper, repayableAmountService);
             then(repaymentEligibilityService).should(inOrder).check(LOAN_ACCOUNT_ID, AMOUNT, TODAY);
             then(telegramNoService).should(inOrder).next(TODAY);
-            then(collectionService).should(inOrder).collect(any(), any(), anyInt(), any(), any(), any());
+            then(collectionService).should(inOrder).collect(any(), anyInt(), any(), any(), any());
             then(repaymentMapper).should(inOrder).insertRepayment(any());
             then(installmentAllocationService).should(inOrder)
                     .allocate(REPAYMENT_ID, LOAN_ACCOUNT_ID, AMOUNT, TARGETS);
@@ -188,13 +188,13 @@ class RepaymentServiceTest {
         }
 
         @Test
-        @DisplayName("상환 계좌 999 / 200-000-000001에서 30,000원을 거래번호 20261016000001, 14:30:15, 전문번호 1로 집금한다")
+        @DisplayName("상환 계좌 999 / 200-000-000001에서 30,000원을 14:30:15, 전문번호 1로 집금한다")
         void 상환_계좌에서_상환_금액을_집금한다() {
             // when
             repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER);
 
             // then
-            then(collectionService).should().collect(eq(TRANSACTION_NO), eq(PAID_AT), eq(TELEGRAM_NO),
+            then(collectionService).should().collect(eq(PAID_AT), eq(TELEGRAM_NO),
                     eq(REPAYMENT_BANK_CODE), eq(REPAYMENT_ACCOUNT_NO), argThat(amount -> amount.compareTo(AMOUNT) == 0));
         }
 
@@ -368,8 +368,8 @@ class RepaymentServiceTest {
         void 집금에_실패하면_기록하지_않는다() {
             // given
             givenEligible(LoanJudgmentStatus.NORMAL);
-            InsufficientBalanceException failed = new InsufficientBalanceException(TRANSACTION_NO);
-            willThrow(failed).given(collectionService).collect(any(), any(), anyInt(), any(), any(), any());
+            InsufficientBalanceException failed = new InsufficientBalanceException(TODAY, TELEGRAM_NO);
+            willThrow(failed).given(collectionService).collect(any(), anyInt(), any(), any(), any());
 
             // when
             Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER));
