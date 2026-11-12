@@ -27,13 +27,15 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * 상환 요청 1건을 처리한다. 채널(고객 상환·자동 상환)은 부르는 쪽이 정해 넘긴다. 상환 가능 확인 → 납부 기록 → 충당 → 스케줄 판정·연체금 해소 판정
- * → 상태 판정 → 상태 변화 처리를 한 트랜잭션으로 하고, 어느 단계에서 실패해도 모두 취소된다.
+ * 상환 요청 1건을 처리한다. 채널(고객 상환·자동 상환)은 부르는 쪽이 정해 넘긴다. 상환 가능 확인 → 집금 → 납부 기록 → 충당
+ * → 스케줄 판정·연체금 해소 판정 → 상태 판정 → 상태 변화 처리를 한 트랜잭션으로 하고, 어느 단계에서 실패해도 DB 변경은 모두 취소된다.
+ * 집금은 DB 롤백으로 되돌릴 수 없어서, 집금 뒤 단계가 실패하면 돈은 빠졌는데 상환 기록은 남지 않는다.
  * 마지막에 상환을 모두 반영한 원금잔액·대출 상태·남은 갚을 금액을 읽어 돌려준다.
  */
 @Service
@@ -53,6 +55,8 @@ public class RepaymentService {
     private final LoanAccountMapper loanAccountMapper;
     private final LoanStatusJudgmentMapper loanStatusJudgmentMapper;
     private final RepayableAmountService repayableAmountService;
+    private final TelegramNoService telegramNoService;
+    private final CollectionService collectionService;
     private final Clock clock;
 
     @Transactional
@@ -65,10 +69,10 @@ public class RepaymentService {
         RepaymentEligibilityResponse eligibility =
                 repaymentEligibilityService.check(loanAccountId, amount, businessDate);
 
-        // TODO(firmbanking): 상환 계좌에서 수납 계좌(repayment.collection-*)로 출금 이체를 호출하고,
-        //  응답의 거래번호를 transactionNo로 쓴다. 외부 이체는 DB 롤백으로 되돌릴 수 없으므로
-        //  호출 순서와 실패 처리를 함께 정한다.
-        String transactionNo = UUID.randomUUID().toString();
+        int telegramNo = telegramNoService.next(businessDate);
+        String transactionNo = transactionNo(businessDate, telegramNo);
+        collectionService.collect(now, telegramNo, eligibility.getRepaymentBankCode(),
+                eligibility.getRepaymentAccountNo(), amount);
 
         RepaymentResponse repayment = RepaymentResponse.builder()
                 .loanAccountId(loanAccountId)
@@ -103,6 +107,13 @@ public class RepaymentService {
         loanStatusJudgmentService.judge(loanAccountId, businessDate);
         loanStatusChangeService.process(loanAccountId, businessDate);
         return readResult(loanAccountId, amount, now, businessDate);
+    }
+
+    /**
+     * 펌뱅킹이 같은 거래로 보는 키(전송일자, 전문번호)를 이어 붙인다. 예) 20261016000001
+     */
+    private static String transactionNo(LocalDate sendDate, int telegramNo) {
+        return sendDate.format(DateTimeFormatter.BASIC_ISO_DATE) + String.format("%06d", telegramNo);
     }
 
     private RepaymentResultResponse readResult(Long loanAccountId, BigDecimal paidAmount, LocalDateTime paidAt,
