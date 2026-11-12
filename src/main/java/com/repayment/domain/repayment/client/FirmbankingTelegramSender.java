@@ -30,32 +30,52 @@ public class FirmbankingTelegramSender {
 
     private final FirmbankingProperties firmbankingProperties;
 
-    /**
-     * 응답 시간은 read 한 번마다 적용한다. 펌뱅킹은 응답을 한 번에 쓰고 연결을 닫는다.
-     */
     public byte[] send(byte[] request) {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(firmbankingProperties.host(), firmbankingProperties.port()),
-                    (int) firmbankingProperties.connectTimeout().toMillis());
-            socket.setSoTimeout((int) firmbankingProperties.readTimeout().toMillis());
-
-            OutputStream out = socket.getOutputStream();
-            out.write(LENGTH_HEADER);
-            out.write(request);
-            out.flush();
-
-            DataInputStream in = new DataInputStream(socket.getInputStream());
-            byte[] header = new byte[LENGTH_HEADER.length];
-            in.readFully(header);
-            if (!Arrays.equals(header, LENGTH_HEADER)) {
-                throw new ProtocolException(
-                        "응답 길이 헤더가 0300이 아니다: " + new String(header, StandardCharsets.US_ASCII));
-            }
-            byte[] response = new byte[TelegramField.TELEGRAM_LENGTH];
-            in.readFully(response);
-            return response;
+        try (Socket socket = connect()) {
+            writeRequest(socket, request);
+            return readResponse(socket);
         } catch (IOException e) {
             throw new UncheckedIOException("펌뱅킹 전문 송수신 실패", e);
         }
+    }
+
+    /**
+     * 연결을 맺고, 이후 read 한 번마다 기다릴 응답 시간을 건다. 펌뱅킹은 응답을 한 번에 쓰고 연결을 닫는다.
+     */
+    private Socket connect() throws IOException {
+        Socket socket = new Socket();
+        try {
+            socket.connect(new InetSocketAddress(firmbankingProperties.host(), firmbankingProperties.port()),
+                    (int) firmbankingProperties.connectTimeout().toMillis());
+            socket.setSoTimeout((int) firmbankingProperties.readTimeout().toMillis());
+            return socket;
+        } catch (IOException e) {
+            socket.close();
+            throw e;
+        }
+    }
+
+    private static void writeRequest(Socket socket, byte[] request) throws IOException {
+        OutputStream out = socket.getOutputStream();
+        out.write(LENGTH_HEADER);
+        out.write(request);
+        out.flush();
+    }
+
+    /**
+     * 길이 헤더 0300을 확인하고 본문 300바이트를 돌려준다.
+     */
+    private static byte[] readResponse(Socket socket) throws IOException {
+        DataInputStream in = new DataInputStream(socket.getInputStream());
+
+        byte[] header = new byte[LENGTH_HEADER.length];
+        in.readFully(header);
+        if (!Arrays.equals(header, LENGTH_HEADER)) {
+            throw new ProtocolException(
+                    "응답 길이 헤더가 0300이 아니다: " + new String(header, StandardCharsets.US_ASCII));
+        }
+        byte[] body = new byte[TelegramField.TELEGRAM_LENGTH];
+        in.readFully(body);
+        return body;
     }
 }
