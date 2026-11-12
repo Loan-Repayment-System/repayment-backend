@@ -55,7 +55,7 @@ class FirmbankingClientTest {
         given(firmbankingTelegramSender.send(any())).willReturn(responseWithCode("0000"));
 
         // when
-        client.collect(SENT_AT, TELEGRAM_NO, WITHDRAWAL_BANK_CODE, WITHDRAWAL_ACCOUNT_NO, AMOUNT);
+        client.requestCollection(SENT_AT, TELEGRAM_NO, WITHDRAWAL_BANK_CODE, WITHDRAWAL_ACCOUNT_NO, AMOUNT);
 
         // then
         ArgumentCaptor<byte[]> captor = ArgumentCaptor.forClass(byte[].class);
@@ -85,7 +85,7 @@ class FirmbankingClientTest {
 
         // when
         String responseCode =
-                client.collect(SENT_AT, TELEGRAM_NO, WITHDRAWAL_BANK_CODE, WITHDRAWAL_ACCOUNT_NO, AMOUNT);
+                client.requestCollection(SENT_AT, TELEGRAM_NO, WITHDRAWAL_BANK_CODE, WITHDRAWAL_ACCOUNT_NO, AMOUNT);
 
         // then
         assertThat(responseCode).isEqualTo("0000");
@@ -99,7 +99,7 @@ class FirmbankingClientTest {
 
         // when
         String responseCode =
-                client.collect(SENT_AT, TELEGRAM_NO, WITHDRAWAL_BANK_CODE, WITHDRAWAL_ACCOUNT_NO, AMOUNT);
+                client.requestCollection(SENT_AT, TELEGRAM_NO, WITHDRAWAL_BANK_CODE, WITHDRAWAL_ACCOUNT_NO, AMOUNT);
 
         // then
         assertThat(responseCode).isEqualTo("B003");

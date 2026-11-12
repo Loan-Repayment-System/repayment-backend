@@ -33,11 +33,11 @@ public class FirmbankingClient {
     private final RepaymentProperties repaymentProperties;
 
     /**
-     * 출금 계좌(고객 상환 계좌)에서 수납 계좌로 amount를 옮긴다.
+     * 출금 계좌(고객 상환 계좌)에서 수납 계좌로 amount를 옮겨 달라고 요청하고 응답코드를 돌려준다.
      * 펌뱅킹은 (업체번호, sentAt의 날짜, telegramNo)가 같으면 같은 거래로 본다.
      */
-    public String collect(LocalDateTime sentAt, int telegramNo, String withdrawalBankCode,
-                          String withdrawalAccountNo, BigDecimal amount) {
+    public String requestCollection(LocalDateTime sentAt, int telegramNo, String withdrawalBankCode,
+                                    String withdrawalAccountNo, BigDecimal amount) {
         byte[] request = collectionTelegram(sentAt, telegramNo, withdrawalBankCode, withdrawalAccountNo, amount);
         byte[] response = firmbankingTelegramSender.send(request);
         return FieldDecoder.readAN(response, CommonField.RESPONSE_CODE);
