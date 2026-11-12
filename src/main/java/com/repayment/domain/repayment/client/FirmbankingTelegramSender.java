@@ -1,5 +1,6 @@
 package com.repayment.domain.repayment.client;
 
+import com.repayment.domain.repayment.client.codec.TelegramField;
 import com.repayment.global.config.FirmbankingProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -25,7 +26,6 @@ import java.util.Arrays;
 @RequiredArgsConstructor
 public class FirmbankingTelegramSender {
 
-    static final int TELEGRAM_LENGTH = 300;
     private static final byte[] LENGTH_HEADER = "0300".getBytes(StandardCharsets.US_ASCII);
 
     private final FirmbankingProperties firmbankingProperties;
@@ -51,7 +51,7 @@ public class FirmbankingTelegramSender {
                 throw new ProtocolException(
                         "응답 길이 헤더가 0300이 아니다: " + new String(header, StandardCharsets.US_ASCII));
             }
-            byte[] response = new byte[TELEGRAM_LENGTH];
+            byte[] response = new byte[TelegramField.TELEGRAM_LENGTH];
             in.readFully(response);
             return response;
         } catch (IOException e) {
