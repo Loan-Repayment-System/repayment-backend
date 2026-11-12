@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.repayment.mapper.TelegramNoSequenceMapper">
+
+    <insert id="upsertNextTelegramNo">
+        INSERT INTO telegram_no_sequence (send_date, last_telegram_no)
+        VALUES (#{sendDate}, 1)
+        ON DUPLICATE KEY UPDATE last_telegram_no = last_telegram_no + 1
+    </insert>
+
+    <select id="findLastTelegramNo" resultType="int">
+        SELECT last_telegram_no
+        FROM telegram_no_sequence
+        WHERE send_date = #{sendDate}
+    </select>
+</mapper>

@@ -33,7 +33,7 @@ class FlywayMigrationTest {
         assertThat(history)
                 .extracting(row -> row.get("version"), row -> toBoolean(row.get("success")))
                 .containsExactly(tuple("0", true), tuple("1", true), tuple("2", true), tuple("3", true), tuple("4", true), tuple("5", true),
-                        tuple("6", true), tuple("7", true), tuple("8", true), tuple("9", true), tuple("10", true));
+                        tuple("6", true), tuple("7", true), tuple("8", true), tuple("9", true), tuple("10", true), tuple("11", true));
     }
 
     @Test
