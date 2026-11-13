@@ -23,6 +23,7 @@ public enum ErrorCode {
     DAILY_CLOSING_ALREADY_COMPLETED(HttpStatus.INTERNAL_SERVER_ERROR, "이미 완료된 일마감입니다."),
     DAILY_CLOSING_ALREADY_RUNNING(HttpStatus.INTERNAL_SERVER_ERROR, "같은 기준일의 일마감이 이미 진행중입니다."),
     DAILY_CLOSING_NOT_RUNNING(HttpStatus.INTERNAL_SERVER_ERROR, "진행중인 일마감이 없습니다."),
+    DAILY_CLOSING_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "일마감을 완료하지 못했습니다."),
 
     // 기준금리
     BASE_RATE_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "기준금리를 조회하지 못했습니다."),
