@@ -56,7 +56,7 @@ class CollectionRequestServiceTest {
     class 상환_가능_확인_통과 {
 
         @Test
-        @DisplayName("처리 중인 상환이 없으면 요청 상태 · 10/17 · 전문번호 7 · 999 / 200-000-000001 · 30,000원으로 1건 저장하고 돌려준다")
+        @DisplayName("처리 중인 상환이 없으면 요청 상태 · 10/17 · 전문번호 7 · 999 / 200-000-000001 · 30,000원 · 다음 시도 14:31:15로 1건 저장하고 돌려준다")
         void 처리_중인_상환이_없으면_집금_요청을_저장한다() {
             // given
             givenEligible();
@@ -80,6 +80,7 @@ class CollectionRequestServiceTest {
             assertThat(saved.getWithdrawalBankCode()).isEqualTo("999");
             assertThat(saved.getWithdrawalAccountNo()).isEqualTo("200-000-000001");
             assertThat(saved.getAmount()).isEqualByComparingTo(AMOUNT);
+            assertThat(saved.getNextRetryAt()).isEqualTo(LocalDateTime.of(2026, 10, 17, 14, 31, 15));
         }
 
         @Test

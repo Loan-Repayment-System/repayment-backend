@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -21,6 +22,9 @@ import java.time.LocalDateTime;
 @Service
 @RequiredArgsConstructor
 public class CollectionRequestService {
+
+    // 요청 처리 중 즉시 재요청이 끝난 뒤에 배치가 잡도록 늦춘다.
+    private static final Duration FIRST_RETRY_DELAY = Duration.ofMinutes(1);
 
     private final RepaymentEligibilityService repaymentEligibilityService;
     private final TelegramNoService telegramNoService;
@@ -49,6 +53,7 @@ public class CollectionRequestService {
                 .withdrawalBankCode(eligibility.getRepaymentBankCode())
                 .withdrawalAccountNo(eligibility.getRepaymentAccountNo())
                 .amount(amount)
+                .nextRetryAt(sentAt.plus(FIRST_RETRY_DELAY))
                 .build();
         collectionRequestMapper.insertCollectionRequest(request);
         return request;
