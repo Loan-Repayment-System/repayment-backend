@@ -26,7 +26,7 @@ public abstract class BusinessException extends RuntimeException {
         this(errorCode, data, null);
     }
 
-    private BusinessException(ErrorCode errorCode, Object data, Throwable cause) {
+    protected BusinessException(ErrorCode errorCode, Object data, Throwable cause) {
         super(errorCode.getMessage(), cause);
         this.errorCode = errorCode;
         this.data = data;
