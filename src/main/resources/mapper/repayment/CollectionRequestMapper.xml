@@ -9,6 +9,15 @@
                 #{telegramNo}, #{sentAt}, #{withdrawalBankCode}, #{withdrawalAccountNo}, #{amount})
     </insert>
 
+    <select id="existsInProgressByLoanAccountId" resultType="boolean">
+        <bind name="requested" value="@com.repayment.global.code.CollectionRequestStatus@REQUESTED"/>
+        <bind name="collected" value="@com.repayment.global.code.CollectionRequestStatus@COLLECTED"/>
+        SELECT EXISTS (SELECT 1
+                       FROM collection_request
+                       WHERE loan_account_id = #{loanAccountId}
+                         AND collection_request_status_id IN (#{requested}, #{collected}))
+    </select>
+
     <update id="updateCollectionRequestStatus">
         UPDATE collection_request
         SET collection_request_status_id = #{to}
