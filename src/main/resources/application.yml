@@ -48,6 +48,8 @@ firmbanking:
   connect-timeout: 3s
   # 응답을 기다리는 시간. 넘기면 이체가 됐는지 알 수 없다.
   read-timeout: 5s
+  # 응답을 받지 못한 집금을 다시 보내기 전 기다리는 시간. 여기에 0~절반 사이 난수를 더한다.
+  retry-delay: 1s
 
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
