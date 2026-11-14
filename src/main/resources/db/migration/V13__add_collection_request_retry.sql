@@ -6,11 +6,4 @@
 
 ALTER TABLE collection_request
     ADD COLUMN retry_count   INT NOT NULL DEFAULT 0 AFTER amount,
-    ADD COLUMN next_retry_at DATETIME NULL AFTER retry_count;
-
--- 이미 있는 행은 새로 저장하는 행과 같이 전송 시각 1분 뒤로 채운다.
-UPDATE collection_request
-SET next_retry_at = DATE_ADD(sent_at, INTERVAL 1 MINUTE);
-
-ALTER TABLE collection_request
-    MODIFY COLUMN next_retry_at DATETIME NOT NULL;
+    ADD COLUMN next_retry_at DATETIME NOT NULL AFTER retry_count;
