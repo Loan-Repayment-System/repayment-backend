@@ -13,5 +13,4 @@ UPDATE collection_request
 SET next_retry_at = DATE_ADD(sent_at, INTERVAL 1 MINUTE);
 
 ALTER TABLE collection_request
-    MODIFY COLUMN next_retry_at DATETIME NOT NULL,
-    ADD INDEX idx_collection_request_status_next_retry_at (collection_request_status_id, next_retry_at);
+    MODIFY COLUMN next_retry_at DATETIME NOT NULL;
