@@ -120,6 +120,97 @@ class CollectionRequestMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("처리 중인 집금 요청이 있는지 확인할 때")
+    class 처리_중인_집금_요청_확인 {
+
+        @Test
+        @DisplayName("대출에 집금 요청이 없으면 false다")
+        void 집금_요청이_없으면_false() {
+            // when
+            boolean exists = collectionRequestMapper.existsInProgressByLoanAccountId(loanAccountId);
+
+            // then
+            assertThat(exists).isFalse();
+        }
+
+        @Test
+        @DisplayName("요청 상태 1건이 있으면 true다")
+        void 요청_상태가_있으면_true() {
+            // given
+            insertWithStatus(loanAccountId, 1, CollectionRequestStatus.REQUESTED);
+
+            // when
+            boolean exists = collectionRequestMapper.existsInProgressByLoanAccountId(loanAccountId);
+
+            // then
+            assertThat(exists).isTrue();
+        }
+
+        @Test
+        @DisplayName("집금 완료 상태 1건이 있으면 true다")
+        void 집금_완료_상태가_있으면_true() {
+            // given
+            insertWithStatus(loanAccountId, 1, CollectionRequestStatus.COLLECTED);
+
+            // when
+            boolean exists = collectionRequestMapper.existsInProgressByLoanAccountId(loanAccountId);
+
+            // then
+            assertThat(exists).isTrue();
+        }
+
+        @Test
+        @DisplayName("상환 완료 1건, 거절 1건만 있으면 false다")
+        void 끝난_건만_있으면_false() {
+            // given
+            insertWithStatus(loanAccountId, 1, CollectionRequestStatus.COMPLETED);
+            insertWithStatus(loanAccountId, 2, CollectionRequestStatus.FAILED);
+
+            // when
+            boolean exists = collectionRequestMapper.existsInProgressByLoanAccountId(loanAccountId);
+
+            // then
+            assertThat(exists).isFalse();
+        }
+
+        @Test
+        @DisplayName("다른 대출에 요청 상태 1건이 있어도 이 대출은 false다")
+        void 다른_대출의_건은_보지_않는다() {
+            // given
+            long otherContractId = insert("INSERT INTO loan_contract (loan_product_id, member_id, contract_date, "
+                    + "maturity_date, contract_principal, contract_additional_rate, contract_base_rate, "
+                    + "total_installments) SELECT loan_product_id, member_id, contract_date, maturity_date, "
+                    + "contract_principal, contract_additional_rate, contract_base_rate, total_installments "
+                    + "FROM loan_contract WHERE loan_contract_id = (SELECT loan_contract_id FROM loan_account "
+                    + "WHERE loan_account_id = ?)", loanAccountId);
+            long otherLoanAccountId = insert("INSERT INTO loan_account (loan_contract_id, repayment_bank_code, "
+                    + "repayment_account_no, account_no, loan_status_id, loan_principal_balance, monthly_payment_day) "
+                    + "VALUES (?, '999', '200-000-000002', '900-000-000402', 1, 10000000, 10)", otherContractId);
+            insertWithStatus(otherLoanAccountId, 1, CollectionRequestStatus.REQUESTED);
+
+            // when
+            boolean exists = collectionRequestMapper.existsInProgressByLoanAccountId(loanAccountId);
+
+            // then
+            assertThat(exists).isFalse();
+        }
+    }
+
+    private void insertWithStatus(long loanAccountId, int telegramNo, CollectionRequestStatus status) {
+        collectionRequestMapper.insertCollectionRequest(CollectionRequestResponse.builder()
+                .loanAccountId(loanAccountId)
+                .repaymentChannelId(RepaymentChannel.CUSTOMER)
+                .collectionRequestStatusId(status)
+                .sendDate(LocalDate.of(2026, 10, 16))
+                .telegramNo(telegramNo)
+                .sentAt(LocalDateTime.of(2026, 10, 16, 14, 30, 15))
+                .withdrawalBankCode("999")
+                .withdrawalAccountNo("200-000-000001")
+                .amount(new BigDecimal("30000"))
+                .build());
+    }
+
     private CollectionRequestResponse requested(int telegramNo) {
         return CollectionRequestResponse.builder()
                 .loanAccountId(loanAccountId)
