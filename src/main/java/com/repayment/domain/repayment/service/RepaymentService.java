@@ -57,7 +57,7 @@ public class RepaymentService {
 
     private void collect(CollectionRequestResponse request) {
         try {
-            collectionService.collect(request);
+            collectionService.collectWithImmediateRetry(request);
         } catch (CollectionRejectedException e) {
             collectionRequestService.markFailed(request.getCollectionRequestId());
             throw e;

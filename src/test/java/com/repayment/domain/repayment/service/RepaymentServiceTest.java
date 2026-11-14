@@ -119,7 +119,7 @@ class RepaymentServiceTest {
                     loanAccountMapper, repayableAmountService);
             then(collectionRequestService).should(inOrder)
                     .create(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER, SENT_AT);
-            then(collectionService).should(inOrder).collect(REQUEST);
+            then(collectionService).should(inOrder).collectWithImmediateRetry(REQUEST);
             then(collectionRequestService).should(inOrder).markCollected(COLLECTION_REQUEST_ID);
             then(repaymentReflectionService).should(inOrder).reflect(REQUEST);
             then(loanAccountMapper).should(inOrder).findLoanAccountStatus(LOAN_ACCOUNT_ID);
@@ -188,7 +188,7 @@ class RepaymentServiceTest {
         void 거절되면_거절로_바꾸고_반영하지_않는다() {
             // given
             InsufficientBalanceException rejected = new InsufficientBalanceException(TODAY, TELEGRAM_NO);
-            willThrow(rejected).given(collectionService).collect(REQUEST);
+            willThrow(rejected).given(collectionService).collectWithImmediateRetry(REQUEST);
 
             // when
             Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER));
@@ -206,7 +206,7 @@ class RepaymentServiceTest {
             // given
             CollectionResultPendingException pending = new CollectionResultPendingException(TRANSACTION_NO,
                     new UncheckedIOException(new SocketTimeoutException("Read timed out")));
-            willThrow(pending).given(collectionService).collect(REQUEST);
+            willThrow(pending).given(collectionService).collectWithImmediateRetry(REQUEST);
 
             // when
             Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER));
