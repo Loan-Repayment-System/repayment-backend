@@ -31,6 +31,8 @@ public class CollectionRequestResponse {
     private String withdrawalBankCode;
     private String withdrawalAccountNo;
     private BigDecimal amount;
+    private Integer retryCount;
+    private LocalDateTime nextRetryAt;
 
     /**
      * 펌뱅킹이 같은 거래로 보는 키(전송일자, 전문번호)를 이어 붙인다. 예) 20261016000001

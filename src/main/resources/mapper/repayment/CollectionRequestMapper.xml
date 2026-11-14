@@ -4,9 +4,11 @@
 
     <insert id="insertCollectionRequest" useGeneratedKeys="true" keyProperty="collectionRequestId">
         INSERT INTO collection_request (loan_account_id, repayment_channel_id, collection_request_status_id, send_date,
-                                        telegram_no, sent_at, withdrawal_bank_code, withdrawal_account_no, amount)
+                                        telegram_no, sent_at, withdrawal_bank_code, withdrawal_account_no, amount,
+                                        next_retry_at)
         VALUES (#{loanAccountId}, #{repaymentChannelId}, #{collectionRequestStatusId}, #{sendDate},
-                #{telegramNo}, #{sentAt}, #{withdrawalBankCode}, #{withdrawalAccountNo}, #{amount})
+                #{telegramNo}, #{sentAt}, #{withdrawalBankCode}, #{withdrawalAccountNo}, #{amount},
+                #{nextRetryAt})
     </insert>
 
     <select id="existsInProgressByLoanAccountId" resultType="boolean">
@@ -17,6 +19,34 @@
                        WHERE loan_account_id = #{loanAccountId}
                          AND collection_request_status_id IN (#{requested}, #{collected}))
     </select>
+
+    <select id="findRetryTargets" resultType="com.repayment.domain.repayment.dto.response.CollectionRequestResponse">
+        <bind name="requested" value="@com.repayment.global.code.CollectionRequestStatus@REQUESTED"/>
+        <bind name="collected" value="@com.repayment.global.code.CollectionRequestStatus@COLLECTED"/>
+        SELECT collection_request_id,
+               loan_account_id,
+               repayment_channel_id,
+               collection_request_status_id,
+               send_date,
+               telegram_no,
+               sent_at,
+               withdrawal_bank_code,
+               withdrawal_account_no,
+               amount,
+               retry_count,
+               next_retry_at
+        FROM collection_request
+        WHERE collection_request_status_id IN (#{requested}, #{collected})
+          AND next_retry_at &lt;= #{now}
+        ORDER BY next_retry_at, collection_request_id
+    </select>
+
+    <update id="updateRetryAttempt">
+        UPDATE collection_request
+        SET retry_count   = retry_count + 1,
+            next_retry_at = #{nextRetryAt}
+        WHERE collection_request_id = #{collectionRequestId}
+    </update>
 
     <update id="updateCollectionRequestStatus">
         UPDATE collection_request

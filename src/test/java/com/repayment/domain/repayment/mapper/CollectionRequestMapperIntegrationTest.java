@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,6 +29,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Transactional
 @DisplayName("집금 요청 매퍼")
 class CollectionRequestMapperIntegrationTest {
+
+    private static final LocalDateTime SENT_AT = LocalDateTime.of(2026, 10, 16, 14, 30, 15);
+    private static final LocalDateTime NEXT_RETRY_AT = LocalDateTime.of(2026, 10, 16, 14, 31, 15);
 
     @Autowired
     private CollectionRequestMapper collectionRequestMapper;
@@ -55,7 +59,7 @@ class CollectionRequestMapperIntegrationTest {
     class 집금_요청_저장 {
 
         @Test
-        @DisplayName("(대출, 고객 상환, 요청, 10/16, 전문번호 1, 14:30:15, 999 / 200-000-000001, 30,000원)을 넣으면 그 값 그대로 1행이 생기고 만든 id가 DTO에 채워진다")
+        @DisplayName("(대출, 고객 상환, 요청, 10/16, 전문번호 1, 14:30:15, 999 / 200-000-000001, 30,000원, 다음 시도 14:31:15)을 넣으면 그 값 그대로 1행이 생기고 시도 횟수는 0, 만든 id가 DTO에 채워진다")
         void 넘긴_값_그대로_1행을_넣고_id를_채운다() {
             // given
             CollectionRequestResponse request = requested(1);
@@ -67,17 +71,20 @@ class CollectionRequestMapperIntegrationTest {
             assertThat(request.getCollectionRequestId()).isNotNull();
             Map<String, Object> row = jdbcTemplate.queryForMap("SELECT loan_account_id, repayment_channel_id, "
                     + "collection_request_status_id, send_date, telegram_no, sent_at, withdrawal_bank_code, "
-                    + "withdrawal_account_no, amount FROM collection_request WHERE collection_request_id = ?",
+                    + "withdrawal_account_no, amount, retry_count, next_retry_at FROM collection_request "
+                    + "WHERE collection_request_id = ?",
                     request.getCollectionRequestId());
             assertThat(((Number) row.get("loan_account_id")).longValue()).isEqualTo(loanAccountId);
             assertThat(((Number) row.get("repayment_channel_id")).intValue()).isEqualTo(1);
             assertThat(((Number) row.get("collection_request_status_id")).intValue()).isEqualTo(1);
             assertThat(row.get("send_date").toString()).isEqualTo("2026-10-16");
             assertThat(((Number) row.get("telegram_no")).intValue()).isEqualTo(1);
-            assertThat(row.get("sent_at")).isEqualTo(LocalDateTime.of(2026, 10, 16, 14, 30, 15));
+            assertThat(row.get("sent_at")).isEqualTo(SENT_AT);
             assertThat(row.get("withdrawal_bank_code")).isEqualTo("999");
             assertThat(row.get("withdrawal_account_no")).isEqualTo("200-000-000001");
             assertThat((BigDecimal) row.get("amount")).isEqualByComparingTo("30000");
+            assertThat(((Number) row.get("retry_count")).intValue()).isZero();
+            assertThat(row.get("next_retry_at")).isEqualTo(NEXT_RETRY_AT);
         }
     }
 
@@ -197,31 +204,135 @@ class CollectionRequestMapperIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("재요청 대상을 조회할 때")
+    class 재요청_대상_조회 {
+
+        @Test
+        @DisplayName("다음 시도 14:31:15인 요청 상태 1건을 14:31:15에 조회하면 그 1건의 모든 값을 가져온다")
+        void 시각이_된_건을_가져온다() {
+            // given
+            Long id = insertWithNextRetryAt(1, CollectionRequestStatus.REQUESTED, NEXT_RETRY_AT);
+
+            // when
+            List<CollectionRequestResponse> targets = collectionRequestMapper.findRetryTargets(NEXT_RETRY_AT);
+
+            // then
+            assertThat(targets).hasSize(1);
+            CollectionRequestResponse target = targets.get(0);
+            assertThat(target.getCollectionRequestId()).isEqualTo(id);
+            assertThat(target.getLoanAccountId()).isEqualTo(loanAccountId);
+            assertThat(target.getRepaymentChannelId()).isEqualTo(RepaymentChannel.CUSTOMER);
+            assertThat(target.getCollectionRequestStatusId()).isEqualTo(CollectionRequestStatus.REQUESTED);
+            assertThat(target.getSendDate()).isEqualTo(LocalDate.of(2026, 10, 16));
+            assertThat(target.getTelegramNo()).isEqualTo(1);
+            assertThat(target.getSentAt()).isEqualTo(SENT_AT);
+            assertThat(target.getWithdrawalBankCode()).isEqualTo("999");
+            assertThat(target.getWithdrawalAccountNo()).isEqualTo("200-000-000001");
+            assertThat(target.getAmount()).isEqualByComparingTo("30000");
+            assertThat(target.getRetryCount()).isZero();
+            assertThat(target.getNextRetryAt()).isEqualTo(NEXT_RETRY_AT);
+        }
+
+        @Test
+        @DisplayName("다음 시도 14:31:15인 요청 상태 1건을 14:31:14에 조회하면 0건이다")
+        void 시각_전에는_가져오지_않는다() {
+            // given
+            insertWithNextRetryAt(1, CollectionRequestStatus.REQUESTED, NEXT_RETRY_AT);
+
+            // when
+            List<CollectionRequestResponse> targets =
+                    collectionRequestMapper.findRetryTargets(NEXT_RETRY_AT.minusSeconds(1));
+
+            // then
+            assertThat(targets).isEmpty();
+        }
+
+        @Test
+        @DisplayName("요청 · 집금 완료 · 상환 완료 · 거절 각 1건이 모두 시각이 되면 요청 · 집금 완료 2건만 가져온다")
+        void 처리_중인_건만_가져온다() {
+            // given
+            insertWithNextRetryAt(1, CollectionRequestStatus.REQUESTED, NEXT_RETRY_AT);
+            insertWithNextRetryAt(2, CollectionRequestStatus.COLLECTED, NEXT_RETRY_AT);
+            insertWithNextRetryAt(3, CollectionRequestStatus.COMPLETED, NEXT_RETRY_AT);
+            insertWithNextRetryAt(4, CollectionRequestStatus.FAILED, NEXT_RETRY_AT);
+
+            // when
+            List<CollectionRequestResponse> targets = collectionRequestMapper.findRetryTargets(NEXT_RETRY_AT);
+
+            // then
+            assertThat(targets).extracting(CollectionRequestResponse::getCollectionRequestStatusId)
+                    .containsExactlyInAnyOrder(CollectionRequestStatus.REQUESTED, CollectionRequestStatus.COLLECTED);
+        }
+
+        @Test
+        @DisplayName("다음 시도 14:33 · 14:32인 처리 중 2건은 14:32, 14:33 순으로 가져온다")
+        void 다음_시도_시각이_이른_것부터_가져온다() {
+            // given
+            LocalDateTime later = LocalDateTime.of(2026, 10, 16, 14, 33);
+            LocalDateTime earlier = LocalDateTime.of(2026, 10, 16, 14, 32);
+            insertWithNextRetryAt(1, CollectionRequestStatus.REQUESTED, later);
+            insertWithNextRetryAt(2, CollectionRequestStatus.COLLECTED, earlier);
+
+            // when
+            List<CollectionRequestResponse> targets = collectionRequestMapper.findRetryTargets(later);
+
+            // then
+            assertThat(targets).extracting(CollectionRequestResponse::getNextRetryAt)
+                    .containsExactly(earlier, later);
+        }
+    }
+
+    @Nested
+    @DisplayName("재요청 시도를 기록할 때")
+    class 재요청_시도_기록 {
+
+        @Test
+        @DisplayName("시도 0회인 건을 다음 시도 14:33:15로 기록하면 시도 횟수 1, 다음 시도 14:33:15다")
+        void 시도_횟수를_올리고_다음_시도_시각을_바꾼다() {
+            // given
+            Long id = insertWithNextRetryAt(1, CollectionRequestStatus.REQUESTED, NEXT_RETRY_AT);
+            LocalDateTime nextRetryAt = LocalDateTime.of(2026, 10, 16, 14, 33, 15);
+
+            // when
+            int updated = collectionRequestMapper.updateRetryAttempt(id, nextRetryAt);
+
+            // then
+            assertThat(updated).isEqualTo(1);
+            Map<String, Object> row = jdbcTemplate.queryForMap("SELECT retry_count, next_retry_at "
+                    + "FROM collection_request WHERE collection_request_id = ?", id);
+            assertThat(((Number) row.get("retry_count")).intValue()).isEqualTo(1);
+            assertThat(row.get("next_retry_at")).isEqualTo(nextRetryAt);
+        }
+    }
+
     private void insertWithStatus(long loanAccountId, int telegramNo, CollectionRequestStatus status) {
-        collectionRequestMapper.insertCollectionRequest(CollectionRequestResponse.builder()
+        collectionRequestMapper.insertCollectionRequest(request(loanAccountId, telegramNo, status, NEXT_RETRY_AT));
+    }
+
+    private Long insertWithNextRetryAt(int telegramNo, CollectionRequestStatus status, LocalDateTime nextRetryAt) {
+        CollectionRequestResponse request = request(loanAccountId, telegramNo, status, nextRetryAt);
+        collectionRequestMapper.insertCollectionRequest(request);
+        return request.getCollectionRequestId();
+    }
+
+    private CollectionRequestResponse requested(int telegramNo) {
+        return request(loanAccountId, telegramNo, CollectionRequestStatus.REQUESTED, NEXT_RETRY_AT);
+    }
+
+    private static CollectionRequestResponse request(long loanAccountId, int telegramNo,
+                                                     CollectionRequestStatus status, LocalDateTime nextRetryAt) {
+        return CollectionRequestResponse.builder()
                 .loanAccountId(loanAccountId)
                 .repaymentChannelId(RepaymentChannel.CUSTOMER)
                 .collectionRequestStatusId(status)
                 .sendDate(LocalDate.of(2026, 10, 16))
                 .telegramNo(telegramNo)
-                .sentAt(LocalDateTime.of(2026, 10, 16, 14, 30, 15))
+                .sentAt(SENT_AT)
                 .withdrawalBankCode("999")
                 .withdrawalAccountNo("200-000-000001")
                 .amount(new BigDecimal("30000"))
-                .build());
-    }
-
-    private CollectionRequestResponse requested(int telegramNo) {
-        return CollectionRequestResponse.builder()
-                .loanAccountId(loanAccountId)
-                .repaymentChannelId(RepaymentChannel.CUSTOMER)
-                .collectionRequestStatusId(CollectionRequestStatus.REQUESTED)
-                .sendDate(LocalDate.of(2026, 10, 16))
-                .telegramNo(telegramNo)
-                .sentAt(LocalDateTime.of(2026, 10, 16, 14, 30, 15))
-                .withdrawalBankCode("999")
-                .withdrawalAccountNo("200-000-000001")
-                .amount(new BigDecimal("30000"))
+                .nextRetryAt(nextRetryAt)
                 .build();
     }
 
