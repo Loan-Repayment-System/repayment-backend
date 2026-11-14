@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.repayment.domain.repayment.mapper.CollectionRequestMapper">
+
+    <insert id="insertCollectionRequest" useGeneratedKeys="true" keyProperty="collectionRequestId">
+        INSERT INTO collection_request (loan_account_id, repayment_channel_id, collection_request_status_id, send_date,
+                                        telegram_no, sent_at, withdrawal_bank_code, withdrawal_account_no, amount)
+        VALUES (#{loanAccountId}, #{repaymentChannelId}, #{collectionRequestStatusId}, #{sendDate},
+                #{telegramNo}, #{sentAt}, #{withdrawalBankCode}, #{withdrawalAccountNo}, #{amount})
+    </insert>
+
+    <update id="updateCollectionRequestStatus">
+        UPDATE collection_request
+        SET collection_request_status_id = #{to}
+        WHERE collection_request_id = #{collectionRequestId}
+          AND collection_request_status_id = #{from}
+    </update>
+</mapper>
