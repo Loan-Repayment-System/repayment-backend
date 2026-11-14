@@ -67,6 +67,8 @@ public enum ErrorCode {
     WITHDRAWAL_CONSENT_NOT_REGISTERED(HttpStatus.UNPROCESSABLE_ENTITY, "상환 계좌의 출금 동의가 등록되어 있지 않습니다."),
     WITHDRAWAL_ACCOUNT_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY, "상환 계좌를 찾을 수 없습니다."),
     COLLECTION_FAILED(HttpStatus.BAD_GATEWAY, "상환금 출금에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    COLLECTION_RESULT_PENDING(HttpStatus.ACCEPTED, "상환금 출금 결과를 확인하고 있습니다. 다시 상환하지 말고 잠시 후 상환 내역을 확인해 주세요."),
+    REPAYMENT_REFLECTION_PENDING(HttpStatus.ACCEPTED, "상환금은 출금되었고 상환을 반영하고 있습니다. 잠시 후 상환 내역을 확인해 주세요."),
     ;
 
     private final HttpStatus status;
