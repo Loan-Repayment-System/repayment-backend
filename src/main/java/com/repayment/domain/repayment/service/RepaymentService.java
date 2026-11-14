@@ -1,119 +1,77 @@
 package com.repayment.domain.repayment.service;
 
-import com.repayment.domain.delinquency.service.DelinquencyResolutionService;
 import com.repayment.domain.loan.dto.response.LoanAccountStatusResponse;
 import com.repayment.domain.loan.exception.LoanAccountNotFoundException;
-import com.repayment.domain.loan.exception.LoanAlreadyPaidOffException;
 import com.repayment.domain.loan.exception.LoanStatusJudgmentNotFoundException;
 import com.repayment.domain.loan.mapper.LoanAccountMapper;
 import com.repayment.domain.loan.mapper.LoanStatusJudgmentMapper;
-import com.repayment.domain.loan.service.LoanStatusChangeService;
-import com.repayment.domain.loan.service.LoanStatusJudgmentService;
-import com.repayment.domain.repayment.dto.response.RepaymentEligibilityResponse;
-import com.repayment.domain.repayment.dto.response.RepaymentResponse;
+import com.repayment.domain.repayment.dto.response.CollectionRequestResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentResultResponse;
-import com.repayment.domain.repayment.dto.response.RepaymentTargetResponse;
-import com.repayment.domain.repayment.mapper.RepaymentMapper;
-import com.repayment.domain.schedule.dto.response.RepaymentScheduleJudgmentTargetResponse;
-import com.repayment.domain.schedule.mapper.RepaymentScheduleMapper;
-import com.repayment.domain.schedule.service.RepaymentScheduleJudgmentService;
+import com.repayment.domain.repayment.exception.RepaymentReflectionPendingException;
 import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.RepaymentChannel;
+import com.repayment.global.exception.CollectionRejectedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.UUID;
 
 /**
- * 상환 요청 1건을 처리한다. 채널(고객 상환·자동 상환)은 부르는 쪽이 정해 넘긴다. 상환 가능 확인 → 집금 → 납부 기록 → 충당
- * → 스케줄 판정·연체금 해소 판정 → 상태 판정 → 상태 변화 처리를 한 트랜잭션으로 하고, 어느 단계에서 실패해도 DB 변경은 모두 취소된다.
- * 집금은 DB 롤백으로 되돌릴 수 없어서, 집금 뒤 단계가 실패하면 돈은 빠졌는데 상환 기록은 남지 않는다.
+ * 상환 요청 1건을 처리한다. 채널(고객 상환·자동 상환)은 부르는 쪽이 정해 넘긴다.
+ * 집금은 DB 롤백으로 되돌릴 수 없어서, 트랜잭션을 집금 앞뒤로 나눈다.
+ * 집금 요청 저장(TX1) → 집금 → 상환 반영(TX2) 순서로 하고, 집금 결과는 집금 요청의 상태로 남긴다.
+ *
+ * <ul>
+ *   <li>거절 응답: 거절 상태로 바꾸고 거절 예외를 그대로 던진다.</li>
+ *   <li>응답 없음: 요청 상태로 두고 결과 확인 중 예외를 던진다.</li>
+ *   <li>반영 실패: 집금 완료 상태로 두고 반영 중 예외를 던진다.</li>
+ * </ul>
  * 마지막에 상환을 모두 반영한 원금잔액·대출 상태·남은 갚을 금액을 읽어 돌려준다.
  */
 @Service
 @RequiredArgsConstructor
 public class RepaymentService {
 
-    private final RepaymentEligibilityService repaymentEligibilityService;
-    private final RepaymentMapper repaymentMapper;
-    private final InstallmentAllocationService installmentAllocationService;
-    private final AccelerationAllocationService accelerationAllocationService;
-    private final MaturityOverdueAllocationService maturityOverdueAllocationService;
-    private final RepaymentScheduleMapper repaymentScheduleMapper;
-    private final RepaymentScheduleJudgmentService repaymentScheduleJudgmentService;
-    private final DelinquencyResolutionService delinquencyResolutionService;
-    private final LoanStatusJudgmentService loanStatusJudgmentService;
-    private final LoanStatusChangeService loanStatusChangeService;
+    private final CollectionRequestService collectionRequestService;
+    private final CollectionService collectionService;
+    private final RepaymentReflectionService repaymentReflectionService;
     private final LoanAccountMapper loanAccountMapper;
     private final LoanStatusJudgmentMapper loanStatusJudgmentMapper;
     private final RepayableAmountService repayableAmountService;
-    private final TelegramNoService telegramNoService;
-    private final CollectionService collectionService;
     private final Clock clock;
 
-    @Transactional
     public RepaymentResultResponse repay(Long loanAccountId, BigDecimal amount, RepaymentChannel channel) {
         // 납부 시각과 판정 기준일이 자정을 사이에 두고 어긋나지 않게 한 번만 읽는다.
         // DATETIME은 초 미만을 반올림해 저장하므로, 저장할 값과 돌려줄 값이 같도록 먼저 버린다.
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
-        LocalDate businessDate = now.toLocalDate();
 
-        RepaymentEligibilityResponse eligibility =
-                repaymentEligibilityService.check(loanAccountId, amount, businessDate);
-
-        int telegramNo = telegramNoService.next(businessDate);
-        String transactionNo = transactionNo(businessDate, telegramNo);
-        collectionService.collect(now, telegramNo, eligibility.getRepaymentBankCode(),
-                eligibility.getRepaymentAccountNo(), amount);
-
-        RepaymentResponse repayment = RepaymentResponse.builder()
-                .loanAccountId(loanAccountId)
-                .repaymentChannelId(channel)
-                // 중복 요청 방지는 아직 없다. NOT NULL·UNIQUE 칸이라 서버가 새로 만들어 채운다.
-                .requestKey(UUID.randomUUID().toString())
-                .paidAmount(amount)
-                .paidAt(now)
-                .transactionNo(transactionNo)
-                .build();
-        repaymentMapper.insertRepayment(repayment);
-        Long repaymentId = repayment.getRepaymentId();
-
-        List<RepaymentTargetResponse> targets = eligibility.getRepayableAmount().getTargets();
-        switch (eligibility.getLatestJudgment()) {
-            case NORMAL, BULLET_INTEREST_OVERDUE, INSTALLMENT_OVERDUE ->
-                    installmentAllocationService.allocate(repaymentId, loanAccountId, amount, targets);
-            case BULLET_ACCELERATION, BULLET_ACCELERATION_CLAUSE_6,
-                 INSTALLMENT_ACCELERATION, INSTALLMENT_ACCELERATION_CLAUSE_6 ->
-                    accelerationAllocationService.allocate(repaymentId, loanAccountId, amount, targets);
-            case MATURITY_OVERDUE ->
-                    maturityOverdueAllocationService.allocate(repaymentId, loanAccountId, amount, targets);
-            // 상환 가능 확인이 완제를 거절하므로 오지 않는다.
-            case PAID_OFF -> throw new LoanAlreadyPaidOffException(loanAccountId);
-        }
-
-        for (RepaymentScheduleJudgmentTargetResponse schedule
-                : repaymentScheduleMapper.findJudgmentTargets(loanAccountId)) {
-            repaymentScheduleJudgmentService.judge(schedule, businessDate);
-        }
-        delinquencyResolutionService.resolve(loanAccountId);
-        loanStatusJudgmentService.judge(loanAccountId, businessDate);
-        loanStatusChangeService.process(loanAccountId, businessDate);
-        return readResult(loanAccountId, amount, now, businessDate);
+        CollectionRequestResponse request = collectionRequestService.create(loanAccountId, amount, channel, now);
+        collect(request);
+        reflect(request);
+        return readResult(loanAccountId, amount, now, now.toLocalDate());
     }
 
-    /**
-     * 펌뱅킹이 같은 거래로 보는 키(전송일자, 전문번호)를 이어 붙인다. 예) 20261016000001
-     */
-    private static String transactionNo(LocalDate sendDate, int telegramNo) {
-        return sendDate.format(DateTimeFormatter.BASIC_ISO_DATE) + String.format("%06d", telegramNo);
+    private void collect(CollectionRequestResponse request) {
+        try {
+            collectionService.collect(request);
+        } catch (CollectionRejectedException e) {
+            collectionRequestService.markFailed(request.getCollectionRequestId());
+            throw e;
+        }
+        collectionRequestService.markCollected(request.getCollectionRequestId());
+    }
+
+    // 돈은 이미 빠졌으므로 어떤 이유로 실패해도 반영 중으로 알린다.
+    private void reflect(CollectionRequestResponse request) {
+        try {
+            repaymentReflectionService.reflect(request);
+        } catch (RuntimeException e) {
+            throw new RepaymentReflectionPendingException(request.getTransactionNo(), e);
+        }
     }
 
     private RepaymentResultResponse readResult(Long loanAccountId, BigDecimal paidAmount, LocalDateTime paidAt,
