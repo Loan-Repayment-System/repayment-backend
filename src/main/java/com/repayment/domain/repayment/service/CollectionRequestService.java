@@ -36,9 +36,7 @@ public class CollectionRequestService {
                                             LocalDateTime sentAt) {
         LocalDate sendDate = sentAt.toLocalDate();
         RepaymentEligibilityResponse eligibility = repaymentEligibilityService.check(loanAccountId, amount, sendDate);
-        if (collectionRequestMapper.existsInProgressByLoanAccountId(loanAccountId)) {
-            throw new RepaymentInProgressException(loanAccountId);
-        }
+        rejectIfInProgress(loanAccountId);
         int telegramNo = telegramNoService.next(sendDate);
 
         CollectionRequestResponse request = CollectionRequestResponse.builder()
@@ -70,5 +68,11 @@ public class CollectionRequestService {
     public void markCompleted(Long collectionRequestId) {
         collectionRequestMapper.updateCollectionRequestStatus(collectionRequestId,
                 CollectionRequestStatus.COLLECTED, CollectionRequestStatus.COMPLETED);
+    }
+
+    private void rejectIfInProgress(Long loanAccountId) {
+        if (collectionRequestMapper.existsInProgressByLoanAccountId(loanAccountId)) {
+            throw new RepaymentInProgressException(loanAccountId);
+        }
     }
 }
