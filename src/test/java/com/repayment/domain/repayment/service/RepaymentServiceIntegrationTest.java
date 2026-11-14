@@ -6,6 +6,7 @@ import com.repayment.domain.repayment.dto.response.RepaymentResultResponse;
 import com.repayment.domain.repayment.exception.CollectionResultPendingException;
 import com.repayment.domain.repayment.exception.InsufficientBalanceException;
 import com.repayment.domain.repayment.exception.RepaymentAmountLeftOverException;
+import com.repayment.domain.repayment.exception.RepaymentInProgressException;
 import com.repayment.domain.repayment.exception.RepaymentReflectionPendingException;
 import com.repayment.global.code.RepaymentChannel;
 import org.junit.jupiter.api.AfterEach;
@@ -188,31 +189,28 @@ class RepaymentServiceIntegrationTest {
             assertThat(countRepayments()).isEqualTo(1);
         }
 
-        // 처리 중인 상환이 있으면 새 상환을 거절하는 작업에서 해결한다.
         @Test
-        @DisplayName("결과 확인 중 응답을 받은 고객이 같은 금액을 다시 상환하면 아직은 성공하고, 집금 요청이 전문번호 1, 1, 2로 3번 나가 요청 1건·상환 완료 1건이 남는다")
-        void 다시_상환하면_아직은_돈이_두_번_빠진다() {
+        @DisplayName("결과 확인 중 응답을 받은 고객이 같은 금액을 다시 상환하면 처리 중인 상환 있음으로 거절되고, 집금은 전문번호 1로 2번만 나가 요청 1건이 남는다")
+        void 다시_상환하면_처리_중인_상환_있음으로_거절한다() {
             // given
             given(firmbankingClient.requestCollection(any(), anyInt(), anyString(), anyString(), any()))
-                    .willThrow(responseTimeout())
-                    .willThrow(responseTimeout())
-                    .willReturn(SUCCESS);
+                    .willThrow(responseTimeout());
             Throwable firstAttempt = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, FIRST_INSTALLMENT,
                     RepaymentChannel.CUSTOMER));
             assertThat(firstAttempt).isInstanceOf(CollectionResultPendingException.class);
 
             // when
-            RepaymentResultResponse result =
-                    repaymentService.repay(LOAN_ACCOUNT_ID, FIRST_INSTALLMENT, RepaymentChannel.CUSTOMER);
+            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, FIRST_INSTALLMENT,
+                    RepaymentChannel.CUSTOMER));
 
             // then
-            assertThat(result.getPaidAmount()).isEqualByComparingTo(FIRST_INSTALLMENT);
+            assertThat(thrown).isInstanceOf(RepaymentInProgressException.class);
             ArgumentCaptor<Integer> telegramNos = ArgumentCaptor.forClass(Integer.class);
-            then(firmbankingClient).should(times(3))
+            then(firmbankingClient).should(times(2))
                     .requestCollection(any(), telegramNos.capture(), anyString(), anyString(), any());
-            assertThat(telegramNos.getAllValues()).containsExactly(1, 1, 2);
-            assertThat(findRequestStatusIds()).containsExactly(REQUESTED, COMPLETED);
-            assertThat(countRepayments()).isEqualTo(1);
+            assertThat(telegramNos.getAllValues()).containsExactly(1, 1);
+            assertThat(findRequestStatusIds()).containsExactly(REQUESTED);
+            assertThat(countRepayments()).isZero();
         }
     }
 
@@ -237,6 +235,28 @@ class RepaymentServiceIntegrationTest {
             assertThat(findRequestStatusIds()).containsExactly(COLLECTED);
             assertThat(countRepayments()).isZero();
             assertThat(findPrincipalBalance()).isEqualByComparingTo(PRINCIPAL_BALANCE);
+        }
+
+        @Test
+        @DisplayName("반영 중 응답을 받은 고객이 같은 금액을 다시 상환하면 처리 중인 상환 있음으로 거절되고, 집금은 1번만 나간다")
+        void 다시_상환하면_처리_중인_상환_있음으로_거절한다() {
+            // given
+            givenResponseCode(SUCCESS);
+            willThrow(new RepaymentAmountLeftOverException(LOAN_ACCOUNT_ID, BigDecimal.ONE))
+                    .given(installmentAllocationService).allocate(anyLong(), anyLong(), any(), anyList());
+            Throwable firstAttempt = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, FIRST_INSTALLMENT,
+                    RepaymentChannel.CUSTOMER));
+            assertThat(firstAttempt).isInstanceOf(RepaymentReflectionPendingException.class);
+
+            // when
+            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, FIRST_INSTALLMENT,
+                    RepaymentChannel.CUSTOMER));
+
+            // then
+            assertThat(thrown).isInstanceOf(RepaymentInProgressException.class);
+            then(firmbankingClient).should(times(1))
+                    .requestCollection(any(), anyInt(), anyString(), anyString(), any());
+            assertThat(findRequestStatusIds()).containsExactly(COLLECTED);
         }
     }
 
