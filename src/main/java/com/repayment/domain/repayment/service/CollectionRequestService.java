@@ -2,6 +2,7 @@ package com.repayment.domain.repayment.service;
 
 import com.repayment.domain.repayment.dto.response.CollectionRequestResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentEligibilityResponse;
+import com.repayment.domain.repayment.exception.RepaymentInProgressException;
 import com.repayment.domain.repayment.mapper.CollectionRequestMapper;
 import com.repayment.global.code.CollectionRequestStatus;
 import com.repayment.global.code.RepaymentChannel;
@@ -26,13 +27,18 @@ public class CollectionRequestService {
     private final CollectionRequestMapper collectionRequestMapper;
 
     /**
-     * 상환 가능 확인 → 채번 → 집금 요청 저장을 한 트랜잭션으로 하고 커밋한다. 확인이 잡은 대출 잠금은 커밋할 때 풀린다.
+     * 상환 가능 확인 → 처리 중인 상환 확인 → 채번 → 집금 요청 저장을 한 트랜잭션으로 하고 커밋한다.
+     * 확인이 잡은 대출 잠금은 커밋할 때 풀리므로, 같은 대출의 동시 요청은 앞 요청이 저장한 집금 요청을 보고 거절된다.
+     * 처리 중인 상환 확인은 상환 반영도 부르는 상환 가능 확인에 넣지 않는다. 반영 중인 자기 요청에 걸리기 때문이다.
      */
     @Transactional
     public CollectionRequestResponse create(Long loanAccountId, BigDecimal amount, RepaymentChannel channel,
                                             LocalDateTime sentAt) {
         LocalDate sendDate = sentAt.toLocalDate();
         RepaymentEligibilityResponse eligibility = repaymentEligibilityService.check(loanAccountId, amount, sendDate);
+        if (collectionRequestMapper.existsInProgressByLoanAccountId(loanAccountId)) {
+            throw new RepaymentInProgressException(loanAccountId);
+        }
         int telegramNo = telegramNoService.next(sendDate);
 
         CollectionRequestResponse request = CollectionRequestResponse.builder()

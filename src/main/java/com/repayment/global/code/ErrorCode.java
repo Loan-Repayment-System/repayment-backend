@@ -69,6 +69,7 @@ public enum ErrorCode {
     COLLECTION_FAILED(HttpStatus.BAD_GATEWAY, "상환금 출금에 실패했습니다. 잠시 후 다시 시도해 주세요."),
     COLLECTION_RESULT_PENDING(HttpStatus.ACCEPTED, "상환금 출금 결과를 확인하고 있습니다. 다시 상환하지 말고 잠시 후 상환 내역을 확인해 주세요."),
     REPAYMENT_REFLECTION_PENDING(HttpStatus.ACCEPTED, "상환금은 출금되었고 상환을 반영하고 있습니다. 잠시 후 상환 내역을 확인해 주세요."),
+    REPAYMENT_IN_PROGRESS(HttpStatus.CONFLICT, "처리 중인 상환이 있습니다. 잠시 후 상환 내역을 확인해 주세요."),
     ;
 
     private final HttpStatus status;
