@@ -157,7 +157,7 @@ class FirmbankingTelegramSenderTest {
     private static FirmbankingTelegramSender senderFor(int port) {
         return new FirmbankingTelegramSender(new FirmbankingProperties(
                 InetAddress.getLoopbackAddress().getHostAddress(), port, "CAPITAL00001",
-                Duration.ofSeconds(1), READ_TIMEOUT));
+                Duration.ofSeconds(1), READ_TIMEOUT, Duration.ofSeconds(1)));
     }
 
     private static byte[] filled(byte value) {

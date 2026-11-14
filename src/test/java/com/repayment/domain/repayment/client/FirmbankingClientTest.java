@@ -42,7 +42,8 @@ class FirmbankingClientTest {
     @BeforeEach
     void setUp() {
         FirmbankingProperties firmbankingProperties = new FirmbankingProperties(
-                "localhost", 9001, "CAPITAL00001", Duration.ofSeconds(3), Duration.ofSeconds(5));
+                "localhost", 9001, "CAPITAL00001", Duration.ofSeconds(3), Duration.ofSeconds(5),
+                Duration.ofSeconds(1));
         RepaymentProperties repaymentProperties =
                 new RepaymentProperties("999", "100-000-000001", "999", "100-000-000002");
         client = new FirmbankingClient(firmbankingTelegramSender, firmbankingProperties, repaymentProperties);

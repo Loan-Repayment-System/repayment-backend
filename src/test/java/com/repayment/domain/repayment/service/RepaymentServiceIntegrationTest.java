@@ -143,7 +143,7 @@ class RepaymentServiceIntegrationTest {
     class 집금_응답_유실 {
 
         @Test
-        @DisplayName("1회차 1,027,289원을 상환하면 결과 확인 중으로 끝나고, 보낸 내용(10/17, 전문번호 1, 999 / 200-000-000001, 1,027,289원)이 요청 상태로 남으며 납부 기록 0건, 원금잔액 12,000,000원 그대로다")
+        @DisplayName("다시 보내도 응답이 없으면 결과 확인 중으로 끝나고, 보낸 내용(10/17, 전문번호 1, 999 / 200-000-000001, 1,027,289원)이 요청 상태로 남으며 납부 기록 0건, 원금잔액 12,000,000원 그대로다")
         void 보낸_내용을_요청_상태로_남긴다() {
             // given
             given(firmbankingClient.requestCollection(any(), anyInt(), anyString(), anyString(), any()))
@@ -170,12 +170,31 @@ class RepaymentServiceIntegrationTest {
             assertThat(findPrincipalBalance()).isEqualByComparingTo(PRINCIPAL_BALANCE);
         }
 
+        @Test
+        @DisplayName("다시 보낸 요청에 0000을 받으면 1회차 1,027,289원 상환에 성공하고, 집금 요청은 상환 완료 1건, 납부 기록 1건이다")
+        void 다시_보내서_성공하면_상환을_반영한다() {
+            // given
+            given(firmbankingClient.requestCollection(any(), anyInt(), anyString(), anyString(), any()))
+                    .willThrow(responseTimeout())
+                    .willReturn(SUCCESS);
+
+            // when
+            RepaymentResultResponse result =
+                    repaymentService.repay(LOAN_ACCOUNT_ID, FIRST_INSTALLMENT, RepaymentChannel.CUSTOMER);
+
+            // then
+            assertThat(result.getPaidAmount()).isEqualByComparingTo(FIRST_INSTALLMENT);
+            assertThat(findRequestStatusIds()).containsExactly(COMPLETED);
+            assertThat(countRepayments()).isEqualTo(1);
+        }
+
         // 처리 중인 상환이 있으면 새 상환을 거절하는 작업에서 해결한다.
         @Test
-        @DisplayName("결과 확인 중 응답을 받은 고객이 같은 금액을 다시 상환하면 아직은 성공하고, 집금 요청이 전문번호 1, 2로 2번 나가 요청 1건·상환 완료 1건이 남는다")
+        @DisplayName("결과 확인 중 응답을 받은 고객이 같은 금액을 다시 상환하면 아직은 성공하고, 집금 요청이 전문번호 1, 1, 2로 3번 나가 요청 1건·상환 완료 1건이 남는다")
         void 다시_상환하면_아직은_돈이_두_번_빠진다() {
             // given
             given(firmbankingClient.requestCollection(any(), anyInt(), anyString(), anyString(), any()))
+                    .willThrow(responseTimeout())
                     .willThrow(responseTimeout())
                     .willReturn(SUCCESS);
             Throwable firstAttempt = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, FIRST_INSTALLMENT,
@@ -189,9 +208,9 @@ class RepaymentServiceIntegrationTest {
             // then
             assertThat(result.getPaidAmount()).isEqualByComparingTo(FIRST_INSTALLMENT);
             ArgumentCaptor<Integer> telegramNos = ArgumentCaptor.forClass(Integer.class);
-            then(firmbankingClient).should(times(2))
+            then(firmbankingClient).should(times(3))
                     .requestCollection(any(), telegramNos.capture(), anyString(), anyString(), any());
-            assertThat(telegramNos.getAllValues()).containsExactly(1, 2);
+            assertThat(telegramNos.getAllValues()).containsExactly(1, 1, 2);
             assertThat(findRequestStatusIds()).containsExactly(REQUESTED, COMPLETED);
             assertThat(countRepayments()).isEqualTo(1);
         }
