@@ -1,6 +1,7 @@
 package com.repayment.global.config.typehandler;
 
 import com.repayment.global.code.CodeEnum;
+import com.repayment.global.code.CollectionRequestStatus;
 import com.repayment.global.code.DailyClosingStatus;
 import com.repayment.global.code.DelinquencyStatus;
 import com.repayment.global.code.FailureType;
@@ -34,7 +35,8 @@ import java.sql.SQLException;
         RepaymentChannel.class,
         DailyClosingStatus.class,
         FailureType.class,
-        RepaymentTargetType.class
+        RepaymentTargetType.class,
+        CollectionRequestStatus.class
 })
 public class CodeEnumTypeHandler<E extends Enum<E> & CodeEnum> extends BaseTypeHandler<E> {
 
