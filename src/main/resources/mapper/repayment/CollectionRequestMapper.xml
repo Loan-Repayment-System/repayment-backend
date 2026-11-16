@@ -23,6 +23,8 @@
     <select id="findRetryTargets" resultType="com.repayment.domain.repayment.dto.response.CollectionRequestResponse">
         <bind name="requested" value="@com.repayment.global.code.CollectionRequestStatus@REQUESTED"/>
         <bind name="collected" value="@com.repayment.global.code.CollectionRequestStatus@COLLECTED"/>
+        <bind name="maxRetryCount"
+              value="@com.repayment.domain.repayment.service.CollectionRequestService@MAX_RETRY_COUNT"/>
         SELECT collection_request_id,
                loan_account_id,
                repayment_channel_id,
@@ -38,6 +40,7 @@
         FROM collection_request
         WHERE collection_request_status_id IN (#{requested}, #{collected})
           AND next_retry_at &lt;= #{now}
+          AND retry_count &lt; #{maxRetryCount}
         ORDER BY next_retry_at, collection_request_id
     </select>
 

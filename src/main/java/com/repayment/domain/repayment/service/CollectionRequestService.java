@@ -8,6 +8,7 @@ import com.repayment.domain.repayment.mapper.CollectionRequestMapper;
 import com.repayment.global.code.CollectionRequestStatus;
 import com.repayment.global.code.RepaymentChannel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,9 +21,13 @@ import java.time.LocalDateTime;
  * 집금 요청을 저장하고 상태를 바꾼다. 집금 요청의 상태는 여기서만 바꾼다.
  * 상태는 직전 상태일 때만 바꿔, 같은 요청이 두 번 반영되지 않게 한다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CollectionRequestService {
+
+    // 재처리 대상 조회가 이 횟수에 이른 건을 더 가져오지 않는다.
+    public static final int MAX_RETRY_COUNT = 5;
 
     // 요청 처리 중 즉시 재요청이 끝난 뒤에 배치가 잡도록 늦춘다.
     private static final Duration FIRST_RETRY_DELAY = Duration.ofMinutes(1);
@@ -84,10 +89,15 @@ public class CollectionRequestService {
 
     /**
      * 시도 횟수를 1 올리고, 다음 시도 시각을 now + 2^(지금까지 시도 횟수)분으로 바꾼다. 간격은 1 → 2 → 4 → 8 → 16분으로 늘어난다.
+     * 이번 기록으로 상한에 이르면 더는 재처리하지 않으므로 사람이 확인하도록 에러 로그를 남긴다.
      */
     public void recordRetryAttempt(CollectionRequestResponse request, LocalDateTime now) {
         LocalDateTime nextRetryAt = now.plusMinutes((long) Math.pow(2, request.getRetryCount()));
         collectionRequestMapper.updateRetryAttempt(request.getCollectionRequestId(), nextRetryAt);
+        if (request.getRetryCount() + 1 == MAX_RETRY_COUNT) {
+            log.error("미확정 집금 재처리 상한 도달 collectionRequestId={} status={}",
+                    request.getCollectionRequestId(), request.getCollectionRequestStatusId());
+        }
     }
 
     private void rejectIfInProgress(Long loanAccountId) {
