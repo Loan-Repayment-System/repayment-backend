@@ -32,3 +32,15 @@
    ```
 
 요약은 `summary-baseline.json`, `summary-outage.json`으로 남는다.
+
+## 보는 지표
+
+thresholds 없이 지표를 기준 실행과 비교해 판단한다.
+
+| 지표 | 보는 것 |
+|---|---|
+| `http_req_duration{name:GET /api/loans/{id}}` p95 | 장애 구간에 조회 응답 시간이 기준 실행보다 얼마나 늘었는지 |
+| `http_req_failed{name:GET /api/loans/{id}}` | 장애 구간에 조회 실패가 생기는지 |
+| `http_req_failed{name:POST /api/loans/{id}/repayments}` | 200, 202 말고 5xx나 시간 초과가 나는지 |
+| `dropped_iterations` | 0인지. 0이 아니면 의도한 초당 요청 수가 나가지 않은 것 |
+| `vus` | 장애 구간에 최대 400에 닿는지 |
