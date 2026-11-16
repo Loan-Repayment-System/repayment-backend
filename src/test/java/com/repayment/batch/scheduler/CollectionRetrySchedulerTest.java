@@ -25,7 +25,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("집금 요청 재요청 스케줄 실행")
+@DisplayName("미확정 집금 재처리 스케줄 실행")
 class CollectionRetrySchedulerTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -51,12 +51,12 @@ class CollectionRetrySchedulerTest {
     }
 
     @Nested
-    @DisplayName("재요청 대상이 있을 때")
+    @DisplayName("재처리 대상이 있을 때")
     class 대상_있음 {
 
         @Test
-        @DisplayName("10:00:00.789에 실행하면 10:00:00으로 대상 A, B를 조회하고 A → B 순서로 각각 10:00:00에 재요청한다")
-        void 조회한_순서대로_재요청한다() {
+        @DisplayName("10:00:00.789에 실행하면 10:00:00으로 대상 A, B를 조회하고 A → B 순서로 각각 10:00:00에 재처리한다")
+        void 조회한_순서대로_재처리한다() {
             // given
             given(collectionRequestMapper.findRetryTargets(NOW)).willReturn(List.of(REQUEST_A, REQUEST_B));
 
@@ -70,8 +70,8 @@ class CollectionRetrySchedulerTest {
         }
 
         @Test
-        @DisplayName("A의 재요청이 예외여도 밖으로 던지지 않고 B를 재요청한다")
-        void 한_건이_실패해도_다음_건을_재요청한다() {
+        @DisplayName("A의 재처리가 예외여도 밖으로 던지지 않고 B를 재처리한다")
+        void 한_건이_실패해도_다음_건을_재처리한다() {
             // given
             given(collectionRequestMapper.findRetryTargets(NOW)).willReturn(List.of(REQUEST_A, REQUEST_B));
             willThrow(new IllegalStateException("DB 오류")).given(collectionRetryService).retry(REQUEST_A, NOW);
@@ -86,12 +86,12 @@ class CollectionRetrySchedulerTest {
     }
 
     @Nested
-    @DisplayName("재요청 대상이 없을 때")
+    @DisplayName("재처리 대상이 없을 때")
     class 대상_없음 {
 
         @Test
-        @DisplayName("재요청하지 않는다")
-        void 재요청하지_않는다() {
+        @DisplayName("재처리하지 않는다")
+        void 재처리하지_않는다() {
             // given
             given(collectionRequestMapper.findRetryTargets(NOW)).willReturn(List.of());
 

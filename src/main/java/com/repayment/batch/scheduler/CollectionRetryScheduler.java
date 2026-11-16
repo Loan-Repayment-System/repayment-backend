@@ -39,7 +39,7 @@ public class CollectionRetryScheduler {
         try {
             collectionRetryService.retry(request, now());
         } catch (RuntimeException e) {
-            log.error("집금 요청 재요청 실패 collectionRequestId={}", request.getCollectionRequestId(), e);
+            log.error("미확정 집금 재처리 실패 collectionRequestId={}", request.getCollectionRequestId(), e);
         }
     }
 
