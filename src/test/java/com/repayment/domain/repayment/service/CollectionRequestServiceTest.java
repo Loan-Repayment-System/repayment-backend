@@ -4,6 +4,7 @@ import com.repayment.domain.loan.exception.LoanAlreadyPaidOffException;
 import com.repayment.domain.repayment.dto.response.CollectionRequestResponse;
 import com.repayment.domain.repayment.dto.response.RepayableAmountResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentEligibilityResponse;
+import com.repayment.domain.repayment.exception.CollectionRequestNotCollectedException;
 import com.repayment.domain.repayment.exception.RepaymentInProgressException;
 import com.repayment.domain.repayment.mapper.CollectionRequestMapper;
 import com.repayment.global.code.CollectionRequestStatus;
@@ -35,6 +36,7 @@ import static org.mockito.Mockito.never;
 class CollectionRequestServiceTest {
 
     private static final long LOAN_ACCOUNT_ID = 10L;
+    private static final long COLLECTION_REQUEST_ID = 300L;
     private static final BigDecimal AMOUNT = new BigDecimal("30000");
     private static final LocalDateTime SENT_AT = LocalDateTime.of(2026, 10, 17, 14, 30, 15);
     private static final LocalDate SEND_DATE = LocalDate.of(2026, 10, 17);
@@ -118,6 +120,39 @@ class CollectionRequestServiceTest {
             assertThat(thrown).isInstanceOf(LoanAlreadyPaidOffException.class);
             then(collectionRequestMapper).shouldHaveNoInteractions();
             then(telegramNoService).shouldHaveNoInteractions();
+        }
+    }
+
+    @Nested
+    @DisplayName("상환 완료로 바꿀 때")
+    class 상환_완료로_변경 {
+
+        @Test
+        @DisplayName("집금 완료 → 상환 완료 변경이 1행이면 예외 없이 끝난다")
+        void 한_행이_바뀌면_끝난다() {
+            // given
+            given(collectionRequestMapper.updateCollectionRequestStatus(COLLECTION_REQUEST_ID,
+                    CollectionRequestStatus.COLLECTED, CollectionRequestStatus.COMPLETED)).willReturn(1);
+
+            // when
+            Throwable thrown = catchThrowable(() -> collectionRequestService.markCompleted(COLLECTION_REQUEST_ID));
+
+            // then
+            assertThat(thrown).isNull();
+        }
+
+        @Test
+        @DisplayName("집금 완료 → 상환 완료 변경이 0행이면 다른 곳에서 먼저 반영한 것이라 집금 완료 상태 아님 예외를 던진다")
+        void 바뀐_행이_없으면_예외를_던진다() {
+            // given
+            given(collectionRequestMapper.updateCollectionRequestStatus(COLLECTION_REQUEST_ID,
+                    CollectionRequestStatus.COLLECTED, CollectionRequestStatus.COMPLETED)).willReturn(0);
+
+            // when
+            Throwable thrown = catchThrowable(() -> collectionRequestService.markCompleted(COLLECTION_REQUEST_ID));
+
+            // then
+            assertThat(thrown).isInstanceOf(CollectionRequestNotCollectedException.class);
         }
     }
 

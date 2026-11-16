@@ -2,7 +2,9 @@ package com.repayment.domain.repayment.service;
 
 import com.repayment.TestcontainersConfig;
 import com.repayment.domain.repayment.client.FirmbankingClient;
+import com.repayment.domain.repayment.dto.response.CollectionRequestResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentResultResponse;
+import com.repayment.domain.repayment.exception.CollectionRequestNotCollectedException;
 import com.repayment.domain.repayment.exception.CollectionResultPendingException;
 import com.repayment.domain.repayment.exception.InsufficientBalanceException;
 import com.repayment.domain.repayment.exception.RepaymentAmountLeftOverException;
@@ -26,6 +28,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.net.SocketTimeoutException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -64,6 +68,9 @@ class RepaymentServiceIntegrationTest {
 
     @Autowired
     private RepaymentService repaymentService;
+
+    @Autowired
+    private RepaymentReflectionService repaymentReflectionService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -115,6 +122,28 @@ class RepaymentServiceIntegrationTest {
             assertThat(findRequestStatusIds()).containsExactly(COMPLETED);
             assertThat(countRepayments()).isEqualTo(1);
             assertThat(findPrincipalBalance()).isEqualByComparingTo("11022711");
+        }
+    }
+
+    @Nested
+    @DisplayName("이미 상환 완료된 집금 요청을 다시 반영할 때")
+    class 중복_반영 {
+
+        @Test
+        @DisplayName("1회차 중 30,000원을 상환한 집금 요청을 다시 반영하면 집금 완료 상태 아님 예외로 롤백되어 납부 기록 1건, 1회차 낸 이자 30,000원 그대로다")
+        void 두_번째_반영을_롤백한다() {
+            // given
+            givenResponseCode(SUCCESS);
+            repaymentService.repay(LOAN_ACCOUNT_ID, new BigDecimal("30000"), RepaymentChannel.CUSTOMER);
+            CollectionRequestResponse completed = findCollectionRequest();
+
+            // when
+            Throwable thrown = catchThrowable(() -> repaymentReflectionService.reflect(completed));
+
+            // then
+            assertThat(thrown).isInstanceOf(CollectionRequestNotCollectedException.class);
+            assertThat(countRepayments()).isEqualTo(1);
+            assertThat(findFirstInstallmentPaidInterest()).isEqualByComparingTo("30000");
         }
     }
 
@@ -295,6 +324,21 @@ class RepaymentServiceIntegrationTest {
                 + "FROM installment", LOAN_ACCOUNT_ID);
     }
 
+    private CollectionRequestResponse findCollectionRequest() {
+        return jdbcTemplate.queryForObject("SELECT collection_request_id, loan_account_id, repayment_channel_id, "
+                + "send_date, telegram_no, sent_at, amount FROM collection_request WHERE loan_account_id = ?",
+                (rs, rowNum) -> CollectionRequestResponse.builder()
+                        .collectionRequestId(rs.getLong("collection_request_id"))
+                        .loanAccountId(rs.getLong("loan_account_id"))
+                        .repaymentChannelId(RepaymentChannel.CUSTOMER)
+                        .sendDate(rs.getObject("send_date", LocalDate.class))
+                        .telegramNo(rs.getInt("telegram_no"))
+                        .sentAt(rs.getObject("sent_at", LocalDateTime.class))
+                        .amount(rs.getBigDecimal("amount"))
+                        .build(),
+                LOAN_ACCOUNT_ID);
+    }
+
     private List<Integer> findRequestStatusIds() {
         return jdbcTemplate.queryForList("SELECT collection_request_status_id FROM collection_request "
                 + "WHERE loan_account_id = ? ORDER BY telegram_no", Integer.class, LOAN_ACCOUNT_ID);
@@ -303,6 +347,11 @@ class RepaymentServiceIntegrationTest {
     private int countRepayments() {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM repayment WHERE loan_account_id = ?",
                 Integer.class, LOAN_ACCOUNT_ID);
+    }
+
+    private BigDecimal findFirstInstallmentPaidInterest() {
+        return jdbcTemplate.queryForObject("SELECT paid_interest FROM repayment_schedule "
+                + "WHERE loan_account_id = ? AND installment_no = 1", BigDecimal.class, LOAN_ACCOUNT_ID);
     }
 
     private BigDecimal findPrincipalBalance() {

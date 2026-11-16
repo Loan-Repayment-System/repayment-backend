@@ -71,8 +71,8 @@ class CollectionServiceTest {
     }
 
     @Nested
-    @DisplayName("펌뱅킹이 응답코드를 돌려줄 때")
-    class 응답을_받음 {
+    @DisplayName("1번만 보낼 때")
+    class 한_번만_보냄 {
 
         @Test
         @DisplayName("0000이면 예외 없이 끝나고, 집금 요청의 시각·전문번호·계좌·금액을 그대로 넘긴다")
@@ -141,38 +141,29 @@ class CollectionServiceTest {
         }
 
         @Test
-        @DisplayName("0000이면 다시 보내지 않고 펌뱅킹을 1번만 부른다")
-        void 성공이면_다시_보내지_않는다() {
+        @DisplayName("응답 시간 초과면 다시 보내지 않고, 펌뱅킹을 1번만 불러 거래번호 20261016000001을 담은 결과 확인 중 예외를 던진다")
+        void 응답이_없으면_다시_보내지_않고_결과_확인_중_예외를_던진다() {
             // given
-            givenResponseCode("0000");
-
-            // when
-            collect();
-
-            // then
-            then(firmbankingClient).should(times(1))
-                    .requestCollection(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT);
-        }
-
-        @Test
-        @DisplayName("B003이면 거절이 확정된 결과라 다시 보내지 않고, 펌뱅킹을 1번만 불러 잔액 부족 예외를 던진다")
-        void 거절이면_다시_보내지_않는다() {
-            // given
-            givenResponseCode("B003");
+            given(firmbankingClient.requestCollection(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT))
+                    .willThrow(TIMEOUT);
 
             // when
             Throwable thrown = catchThrowable(() -> collect());
 
             // then
-            assertThat(thrown).isInstanceOf(InsufficientBalanceException.class);
             then(firmbankingClient).should(times(1))
                     .requestCollection(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT);
+            assertThat(thrown).isInstanceOf(CollectionResultPendingException.class)
+                    .isNotInstanceOf(CollectionRejectedException.class)
+                    .hasCause(TIMEOUT);
+            RepaymentPendingResponse data = (RepaymentPendingResponse) ((CollectionResultPendingException) thrown).getData();
+            assertThat(data.getTransactionNo()).isEqualTo("20261016000001");
         }
     }
 
     @Nested
-    @DisplayName("응답을 받지 못할 때")
-    class 응답을_받지_못함 {
+    @DisplayName("응답이 없으면 1번 더 보낼 때")
+    class 즉시_재요청 {
 
         @Test
         @DisplayName("다시 보낸 요청이 0000이면 예외 없이 끝나고, 펌뱅킹을 같은 시각·전문번호·계좌·금액으로 2번 부른다")
@@ -183,7 +174,7 @@ class CollectionServiceTest {
                     .willReturn("0000");
 
             // when
-            collect();
+            collectWithImmediateRetry();
 
             // then
             then(firmbankingClient).should(times(2))
@@ -199,7 +190,7 @@ class CollectionServiceTest {
                     .willReturn("B003");
 
             // when
-            Throwable thrown = catchThrowable(() -> collect());
+            Throwable thrown = catchThrowable(() -> collectWithImmediateRetry());
 
             // then
             assertThat(thrown).isInstanceOf(InsufficientBalanceException.class);
@@ -213,7 +204,7 @@ class CollectionServiceTest {
                     .willThrow(TIMEOUT);
 
             // when
-            Throwable thrown = catchThrowable(() -> collect());
+            Throwable thrown = catchThrowable(() -> collectWithImmediateRetry());
 
             // then
             then(firmbankingClient).should(times(2))
@@ -224,6 +215,35 @@ class CollectionServiceTest {
             RepaymentPendingResponse data = (RepaymentPendingResponse) ((CollectionResultPendingException) thrown).getData();
             assertThat(data.getTransactionNo()).isEqualTo("20261016000001");
         }
+
+        @Test
+        @DisplayName("0000이면 다시 보내지 않고 펌뱅킹을 1번만 부른다")
+        void 성공이면_다시_보내지_않는다() {
+            // given
+            givenResponseCode("0000");
+
+            // when
+            collectWithImmediateRetry();
+
+            // then
+            then(firmbankingClient).should(times(1))
+                    .requestCollection(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT);
+        }
+
+        @Test
+        @DisplayName("B003이면 거절이 확정된 결과라 다시 보내지 않고, 펌뱅킹을 1번만 불러 잔액 부족 예외를 던진다")
+        void 거절이면_다시_보내지_않는다() {
+            // given
+            givenResponseCode("B003");
+
+            // when
+            Throwable thrown = catchThrowable(() -> collectWithImmediateRetry());
+
+            // then
+            assertThat(thrown).isInstanceOf(InsufficientBalanceException.class);
+            then(firmbankingClient).should(times(1))
+                    .requestCollection(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT);
+        }
     }
 
     private void givenResponseCode(String responseCode) {
@@ -233,5 +253,9 @@ class CollectionServiceTest {
 
     private void collect() {
         collectionService.collect(REQUEST);
+    }
+
+    private void collectWithImmediateRetry() {
+        collectionService.collectWithImmediateRetry(REQUEST);
     }
 }

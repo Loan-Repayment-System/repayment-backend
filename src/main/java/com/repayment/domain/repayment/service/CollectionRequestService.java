@@ -2,6 +2,7 @@ package com.repayment.domain.repayment.service;
 
 import com.repayment.domain.repayment.dto.response.CollectionRequestResponse;
 import com.repayment.domain.repayment.dto.response.RepaymentEligibilityResponse;
+import com.repayment.domain.repayment.exception.CollectionRequestNotCollectedException;
 import com.repayment.domain.repayment.exception.RepaymentInProgressException;
 import com.repayment.domain.repayment.mapper.CollectionRequestMapper;
 import com.repayment.global.code.CollectionRequestStatus;
@@ -69,10 +70,16 @@ public class CollectionRequestService {
                 CollectionRequestStatus.REQUESTED, CollectionRequestStatus.FAILED);
     }
 
-    // 상환 반영 트랜잭션 안에서 불러, 반영이 롤백되면 함께 롤백된다.
+    /**
+     * 상환 반영 트랜잭션 안에서 불러, 반영이 롤백되면 함께 롤백된다.
+     * 바뀐 행이 없으면 다른 곳에서 먼저 반영한 것이므로 예외를 던져 이번 반영을 롤백한다.
+     */
     public void markCompleted(Long collectionRequestId) {
-        collectionRequestMapper.updateCollectionRequestStatus(collectionRequestId,
+        int updated = collectionRequestMapper.updateCollectionRequestStatus(collectionRequestId,
                 CollectionRequestStatus.COLLECTED, CollectionRequestStatus.COMPLETED);
+        if (updated == 0) {
+            throw new CollectionRequestNotCollectedException(collectionRequestId);
+        }
     }
 
     private void rejectIfInProgress(Long loanAccountId) {

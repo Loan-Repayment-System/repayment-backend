@@ -70,6 +70,7 @@ public enum ErrorCode {
     COLLECTION_RESULT_PENDING(HttpStatus.ACCEPTED, "상환금 출금 결과를 확인하고 있습니다. 다시 상환하지 말고 잠시 후 상환 내역을 확인해 주세요."),
     REPAYMENT_REFLECTION_PENDING(HttpStatus.ACCEPTED, "상환금은 출금되었고 상환을 반영하고 있습니다. 잠시 후 상환 내역을 확인해 주세요."),
     REPAYMENT_IN_PROGRESS(HttpStatus.CONFLICT, "처리 중인 상환이 있습니다. 잠시 후 상환 내역을 확인해 주세요."),
+    COLLECTION_REQUEST_NOT_COLLECTED(HttpStatus.INTERNAL_SERVER_ERROR, "집금 완료 상태가 아닌 집금 요청입니다."),
     ;
 
     private final HttpStatus status;

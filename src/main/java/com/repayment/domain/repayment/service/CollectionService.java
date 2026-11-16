@@ -18,8 +18,8 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 저장한 집금 요청 그대로 펌뱅킹에 집금을 보내고, 0000이 아니면 응답코드에 맞는 거절 예외를 던진다.
  * 고객이 고칠 수 있는 코드(잔액 부족·출금 동의 없음·출금 계좌 없음)만 따로 던지고, 나머지는 집금 실패로 묶는다.
- * 응답을 받지 못하면 잠시 기다렸다가 같은 내용으로 한 번 더 보낸다. 펌뱅킹은 같은 요청에 저장해 둔 결과를 돌려주므로
- * 처음 요청이 이체됐어도 두 번 빠지지 않는다. 그래도 응답이 없으면 이체했는지 알 수 없으므로 결과 확인 중 예외를 던진다.
+ * 응답을 받지 못하면 이체했는지 알 수 없으므로 거절로 보지 않고 결과 확인 중 예외를 던진다.
+ * 같은 집금 요청을 다시 보내도 펌뱅킹은 저장해 둔 결과를 돌려주므로 두 번 빠지지 않는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -33,8 +33,28 @@ public class CollectionService {
     private final FirmbankingClient firmbankingClient;
     private final FirmbankingProperties firmbankingProperties;
 
+    /**
+     * 1번만 보낸다. 응답을 받지 못하면 바로 결과 확인 중 예외를 던진다.
+     */
     public void collect(CollectionRequestResponse request) {
-        String responseCode = requestCollectionWithRetry(request);
+        handleResponseCode(request, requestCollectionOrThrowPending(request));
+    }
+
+    /**
+     * 응답을 받지 못하면 잠시 기다렸다가 1번 더 보낸다. 그래도 응답이 없으면 결과 확인 중 예외를 던진다.
+     */
+    public void collectWithImmediateRetry(CollectionRequestResponse request) {
+        String responseCode;
+        try {
+            responseCode = requestCollection(request);
+        } catch (UncheckedIOException e) {
+            waitBeforeRetry(request, e);
+            responseCode = requestCollectionOrThrowPending(request);
+        }
+        handleResponseCode(request, responseCode);
+    }
+
+    private void handleResponseCode(CollectionRequestResponse request, String responseCode) {
         LocalDate sendDate = request.getSendDate();
         int telegramNo = request.getTelegramNo();
         switch (responseCode) {
@@ -47,12 +67,7 @@ public class CollectionService {
         }
     }
 
-    private String requestCollectionWithRetry(CollectionRequestResponse request) {
-        try {
-            return requestCollection(request);
-        } catch (UncheckedIOException e) {
-            waitBeforeRetry(request, e);
-        }
+    private String requestCollectionOrThrowPending(CollectionRequestResponse request) {
         try {
             return requestCollection(request);
         } catch (UncheckedIOException e) {
