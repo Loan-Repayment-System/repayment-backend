@@ -15,3 +15,6 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+
+# k6 실행 결과
+summary-*.json
