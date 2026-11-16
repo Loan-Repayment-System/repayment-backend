@@ -20,7 +20,7 @@
 1. 기준 실행: 장애 없이 돌려 정상 구간 조회 p95를 잰다.
 
    ```bash
-   FAULT=off k6 run load-test/k6/firmbanking-outage.js
+   FAULT=off k6 run load-test/collection-result-pending/k6/firmbanking-outage.js
    ```
 
 2. 장애 실행: 1의 정상 구간 조회 p95를 `BASELINE_P95_MS`로 넘긴다.
@@ -30,7 +30,7 @@
    FAULT_START_URL=<장애 켜기 API> FAULT_END_URL=<장애 끄기 API> \
    K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
    K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99),max \
-   k6 run -o experimental-prometheus-rw load-test/k6/firmbanking-outage.js
+   k6 run -o experimental-prometheus-rw load-test/collection-result-pending/k6/firmbanking-outage.js
    ```
 
 요약은 `summary-baseline.json`, `summary-outage.json`으로 남는다.
