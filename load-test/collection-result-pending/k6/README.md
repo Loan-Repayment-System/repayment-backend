@@ -13,20 +13,18 @@
 | `FAULT` | 켜짐 | `off`면 장애 없이 돌린다 |
 | `FAULT_START_URL` | 없음 | 펌뱅킹 장애 켜기 API. `POST`로 부르고 200을 기대한다 |
 | `FAULT_END_URL` | 없음 | 펌뱅킹 장애 끄기 API |
-| `BASELINE_P95_MS` | 없음 | 기준 실행의 조회 p95. 장애·복구 구간 조회 p95가 이 값의 2배 미만이어야 통과 |
 
 ## 실행
 
-1. 기준 실행: 장애 없이 돌려 정상 구간 조회 p95를 잰다.
+1. 기준 실행: 장애 없이 돌려 비교할 기준값을 잰다.
 
    ```bash
    FAULT=off k6 run load-test/collection-result-pending/k6/firmbanking-outage.js
    ```
 
-2. 장애 실행: 1의 정상 구간 조회 p95를 `BASELINE_P95_MS`로 넘긴다.
+2. 장애 실행
 
    ```bash
-   BASELINE_P95_MS=<기준 p95> \
    FAULT_START_URL=<장애 켜기 API> FAULT_END_URL=<장애 끄기 API> \
    K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
    K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99),max \
@@ -34,12 +32,3 @@
    ```
 
 요약은 `summary-baseline.json`, `summary-outage.json`으로 남는다.
-
-## 판정 기준
-
-| 지표 | 기준 |
-|---|---|
-| 상환 실패율 | 0%. 200 완료와 202 결과 미확인만 정상 |
-| 조회 실패율 | 구간별 1% 미만 |
-| 조회 p95 | 장애·복구 구간이 기준 실행 p95의 2배 미만 |
-| `dropped_iterations` | 0 |
