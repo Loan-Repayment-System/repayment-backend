@@ -2,7 +2,6 @@ package com.repayment.domain.repayment.service;
 
 import com.repayment.domain.repayment.dto.response.CollectionRequestResponse;
 import com.repayment.domain.repayment.exception.CollectionResultPendingException;
-import com.repayment.global.code.CollectionRequestStatus;
 import com.repayment.global.exception.CollectionRejectedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,26 +26,27 @@ public class CollectionRetryService {
     private final RepaymentReflectionService repaymentReflectionService;
 
     public void retry(CollectionRequestResponse request, LocalDateTime now) {
-        if (request.getCollectionRequestStatusId() == CollectionRequestStatus.REQUESTED
-                && !collect(request, now)) {
-            return;
+        switch (request.getCollectionRequestStatusId()) {
+            case REQUESTED -> collectAndReflect(request, now);
+            case COLLECTED -> reflect(request, now);
+            // 재요청 대상 조회가 요청·집금 완료만 가져오므로 오지 않는다.
+            case COMPLETED, FAILED -> {
+            }
         }
-        reflect(request, now);
     }
 
-    // 집금에 성공했으면 true를 돌려준다.
-    private boolean collect(CollectionRequestResponse request, LocalDateTime now) {
+    private void collectAndReflect(CollectionRequestResponse request, LocalDateTime now) {
         try {
             collectionService.collect(request);
         } catch (CollectionRejectedException e) {
             collectionRequestService.markFailed(request.getCollectionRequestId());
-            return false;
+            return;
         } catch (CollectionResultPendingException e) {
             collectionRequestService.recordRetryAttempt(request, now);
-            return false;
+            return;
         }
         collectionRequestService.markCollected(request.getCollectionRequestId());
-        return true;
+        reflect(request, now);
     }
 
     // 다른 곳에서 먼저 반영해 실패한 경우도 시도만 기록한다. 이미 상환 완료라 다음 대상에 잡히지 않는다.
