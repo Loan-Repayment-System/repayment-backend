@@ -156,6 +156,42 @@ class CollectionRequestServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("재요청 시도를 기록할 때")
+    class 재요청_시도_기록 {
+
+        private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 17, 10, 0);
+
+        @Test
+        @DisplayName("지금까지 시도 0번이면 다음 시도 시각을 1분 뒤인 10:01로 바꾼다")
+        void 첫_간격은_1분이다() {
+            // when
+            collectionRequestService.recordRetryAttempt(retryTarget(0), NOW);
+
+            // then
+            then(collectionRequestMapper).should()
+                    .updateRetryAttempt(COLLECTION_REQUEST_ID, LocalDateTime.of(2026, 10, 17, 10, 1));
+        }
+
+        @Test
+        @DisplayName("지금까지 시도 4번이면 다음 시도 시각을 16분 뒤인 10:16으로 바꾼다")
+        void 시도할수록_간격이_두_배로_늘어난다() {
+            // when
+            collectionRequestService.recordRetryAttempt(retryTarget(4), NOW);
+
+            // then
+            then(collectionRequestMapper).should()
+                    .updateRetryAttempt(COLLECTION_REQUEST_ID, LocalDateTime.of(2026, 10, 17, 10, 16));
+        }
+
+        private CollectionRequestResponse retryTarget(int retryCount) {
+            return CollectionRequestResponse.builder()
+                    .collectionRequestId(COLLECTION_REQUEST_ID)
+                    .retryCount(retryCount)
+                    .build();
+        }
+    }
+
     private void givenEligible() {
         given(repaymentEligibilityService.check(LOAN_ACCOUNT_ID, AMOUNT, SEND_DATE)).willReturn(
                 new RepaymentEligibilityResponse("999", "200-000-000001", LoanJudgmentStatus.NORMAL,
