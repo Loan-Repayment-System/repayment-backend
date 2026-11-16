@@ -82,6 +82,14 @@ public class CollectionRequestService {
         }
     }
 
+    /**
+     * 시도 횟수를 1 올리고, 다음 시도 시각을 now + 2^(지금까지 시도 횟수)분으로 바꾼다. 간격은 1 → 2 → 4 → 8 → 16분으로 늘어난다.
+     */
+    public void recordRetryAttempt(CollectionRequestResponse request, LocalDateTime now) {
+        LocalDateTime nextRetryAt = now.plusMinutes(1L << request.getRetryCount());
+        collectionRequestMapper.updateRetryAttempt(request.getCollectionRequestId(), nextRetryAt);
+    }
+
     private void rejectIfInProgress(Long loanAccountId) {
         if (collectionRequestMapper.existsInProgressByLoanAccountId(loanAccountId)) {
             throw new RepaymentInProgressException(loanAccountId);
