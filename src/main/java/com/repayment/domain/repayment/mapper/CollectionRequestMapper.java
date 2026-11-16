@@ -19,7 +19,7 @@ public interface CollectionRequestMapper {
     boolean existsInProgressByLoanAccountId(Long loanAccountId);
 
     /**
-     * 요청·집금 완료 상태이고 다음 시도 시각이 now 이전인 집금 요청을, 다음 시도 시각이 이른 것부터 가져온다.
+     * 요청·집금 완료 상태이고 다음 시도 시각이 now 이전이며 시도 횟수가 상한 미만인 집금 요청을, 다음 시도 시각이 이른 것부터 가져온다.
      */
     List<CollectionRequestResponse> findRetryTargets(LocalDateTime now);
 

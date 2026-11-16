@@ -281,6 +281,33 @@ class CollectionRequestMapperIntegrationTest {
             assertThat(targets).extracting(CollectionRequestResponse::getNextRetryAt)
                     .containsExactly(earlier, later);
         }
+        @Test
+        @DisplayName("시도 4회이고 다음 시도 시각이 된 요청 상태 1건은 가져온다")
+        void 상한_전이면_가져온다() {
+            // given
+            Long id = insertWithNextRetryAt(1, CollectionRequestStatus.REQUESTED, NEXT_RETRY_AT);
+            setRetryCount(id, 4);
+
+            // when
+            List<CollectionRequestResponse> targets = collectionRequestMapper.findRetryTargets(NEXT_RETRY_AT);
+
+            // then
+            assertThat(targets).extracting(CollectionRequestResponse::getCollectionRequestId).containsExactly(id);
+        }
+
+        @Test
+        @DisplayName("시도 5회이고 다음 시도 시각이 된 요청 상태 1건은 상한에 이르러 0건이다")
+        void 상한에_이르면_가져오지_않는다() {
+            // given
+            Long id = insertWithNextRetryAt(1, CollectionRequestStatus.REQUESTED, NEXT_RETRY_AT);
+            setRetryCount(id, 5);
+
+            // when
+            List<CollectionRequestResponse> targets = collectionRequestMapper.findRetryTargets(NEXT_RETRY_AT);
+
+            // then
+            assertThat(targets).isEmpty();
+        }
     }
 
     @Nested
@@ -304,6 +331,11 @@ class CollectionRequestMapperIntegrationTest {
             assertThat(((Number) row.get("retry_count")).intValue()).isEqualTo(1);
             assertThat(row.get("next_retry_at")).isEqualTo(nextRetryAt);
         }
+    }
+
+    private void setRetryCount(Long collectionRequestId, int retryCount) {
+        jdbcTemplate.update("UPDATE collection_request SET retry_count = ? WHERE collection_request_id = ?",
+                retryCount, collectionRequestId);
     }
 
     private void insertWithStatus(long loanAccountId, int telegramNo, CollectionRequestStatus status) {
