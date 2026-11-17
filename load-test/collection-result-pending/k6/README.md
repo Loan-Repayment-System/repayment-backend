@@ -11,8 +11,7 @@
 | `LOAN_COUNT` | `30000` | 더미 대출 개수 |
 | `REPAYMENT_AMOUNT` | `10000` | 상환 1건 금액 |
 | `FAULT` | 켜짐 | `off`면 장애 없이 돌린다 |
-| `FAULT_START_URL` | 없음 | 펌뱅킹 장애 켜기 API. `POST`로 부르고 200을 기대한다 |
-| `FAULT_END_URL` | 없음 | 펌뱅킹 장애 끄기 API |
+| `TOXIPROXY_URL` | `http://localhost:8474` | 장애를 켜고 끄는 Toxiproxy API 주소. compose로 실행하면 `http://toxiproxy:8474` |
 
 ## 실행
 
@@ -26,10 +25,11 @@
    docker compose up -d --build
    ```
 
-2. 상환 DB 더미 대출 3만 건 넣기. 상환 서버가 떠서 Flyway가 테이블을 만든 뒤 넣는다.
+2. 더미 데이터 넣기. 두 앱이 떠서 Flyway가 테이블을 만든 뒤 넣는다. 상환 DB에는 대출 3만 건, 펌뱅킹 DB에는 그 상환 계좌 3만 개와 출금 동의를 넣는다.
 
    ```bash
    docker compose exec -T repayment-mysql mysql -urepayment -prepayment1234 repayment < sql/seed.sql
+   docker compose exec -T firmbanking-mysql mysql -ufirmbanking -pfirmbanking1234 firmbanking < sql/firmbanking-seed.sql
    ```
 
 3. 일마감 실행. 3만 건의 1회차를 확정한다(로컬에서 약 40초).
@@ -48,6 +48,7 @@
 
    ```bash
    docker compose exec -T repayment-mysql mysql -t --default-character-set=utf8mb4 -urepayment -prepayment1234 repayment < sql/verify.sql
+   docker compose exec -T firmbanking-mysql mysql -t --default-character-set=utf8mb4 -ufirmbanking -pfirmbanking1234 firmbanking < sql/firmbanking-verify.sql
    ```
 
 6. 초기화: 두 DB를 새로 만들고 두 앱을 다시 띄운다. Prometheus 지표는 남는다. 그다음 2·3을 다시 한다.
@@ -56,23 +57,32 @@
    docker compose up -d --force-recreate --renew-anon-volumes repayment-mysql firmbanking-mysql repayment firmbanking
    ```
 
-7. 장애 실행 후 5로 정합성을 확인한다.
+7. 장애 실행 후 5로 정합성을 확인한다. 3분에 Toxiproxy가 펌뱅킹 응답을 막고, 13분에 푼다.
 
    ```bash
-   FAULT_START_URL=<장애 켜기 API> FAULT_END_URL=<장애 끄기 API> docker compose run --rm k6
+   docker compose run --rm k6
    ```
 
 요약은 `summary-baseline.json`, `summary-outage.json`으로 남는다. 지표는 Grafana(http://localhost:3000)의 `펌뱅킹 장애 부하 테스트` 대시보드에서 본다.
 
 ## 정합성 SQL
 
+상환 DB(`sql/verify.sql`)
+
 | # | 검사 | 기대 | 의미 |
 |---|---|---|---|
 | 1 | 집금 요청 상태별 건수 | 요청·집금 완료 0건 | 결과를 모르던 집금이 장애 뒤 모두 자동으로 처리됐다 |
 | 2 | 상환 완료 요청과 상환의 건수·금액 | 같음 | 집금된 돈이 빠짐없이 상환에 반영됐다 |
-| 3 | 상환 완료 요청과 펌뱅킹 이체 성공의 건수·금액 | 같음 (펌뱅킹 정합성 SQL과 나란히 본다) | 고객 계좌에서 빠진 돈과 상환 서버가 반영한 돈이 일치한다 |
+| 3 | 상환 완료 요청과 펌뱅킹 이체 성공의 건수·금액 | 같음 (펌뱅킹 1번과 나란히 본다) | 고객 계좌에서 빠진 돈과 상환 서버가 반영한 돈이 일치한다 |
 | 4 | 대출별 상환 건수 | 1건을 넘는 대출 0행 | 재요청이 이중 집금을 만들지 않았다 |
 | 5 | 상환 완료 요청마다 같은 거래번호의 상환 | 빠진 요청 0행 | 집금 완료 요청 하나하나가 자기 상환으로 반영됐다 |
+
+펌뱅킹 DB(`sql/firmbanking-verify.sql`)
+
+| # | 검사 | 기대 | 의미 |
+|---|---|---|---|
+| 1 | 집금 이체 성공 건수·금액 | 상환 DB 2번의 상환 완료 요청과 같음 | 고객 계좌에서 빠진 돈과 상환 서버가 반영한 돈이 일치한다 |
+| 2 | 계좌별 집금 성공 건수 | 1건을 넘는 계좌 0행 | 같은 고객 돈이 두 번 빠지지 않았다 |
 
 ## 보는 지표
 

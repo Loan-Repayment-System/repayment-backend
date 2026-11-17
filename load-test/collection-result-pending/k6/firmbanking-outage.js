@@ -5,6 +5,7 @@ import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
 /**
  * 펌뱅킹 장애 부하 테스트. 정상 3분 → 장애 10분 → 복구 15분 동안 상환을 초당 요청 수 고정으로 보낸다.
  * 장애는 펌뱅킹이 이체는 처리하고 응답을 보내지 않는 상태이고, 3분과 13분에 이 스크립트가 켜고 끈다.
+ * 상환 서버와 펌뱅킹 사이의 Toxiproxy에서 펌뱅킹 → 상환 서버 방향 데이터를 막아 만든다.
  * FAULT=off면 장애 없이 돌려 더미 데이터와 정합성 SQL이 맞는지 먼저 확인한다.
  */
 
@@ -13,17 +14,13 @@ const LOAN_ID_START = Number(__ENV.LOAN_ID_START || 1);
 const LOAN_COUNT = Number(__ENV.LOAN_COUNT || 30000);
 const REPAYMENT_AMOUNT = Number(__ENV.REPAYMENT_AMOUNT || 10000);
 const FAULT_ENABLED = __ENV.FAULT !== 'off';
-const FAULT_START_URL = __ENV.FAULT_START_URL;
-const FAULT_END_URL = __ENV.FAULT_END_URL;
+const TOXIPROXY_URL = __ENV.TOXIPROXY_URL || 'http://localhost:8474';
+const FAULT_TOXIC_NAME = 'response-loss';
 
 const NORMAL_MINUTES = 3;
 const OUTAGE_MINUTES = 10;
 const RECOVERY_MINUTES = 15;
 const TOTAL_MINUTES = NORMAL_MINUTES + OUTAGE_MINUTES + RECOVERY_MINUTES;
-
-if (FAULT_ENABLED && (!FAULT_START_URL || !FAULT_END_URL)) {
-    throw new Error('FAULT_START_URL, FAULT_END_URL이 필요하다. 장애 없이 돌리려면 FAULT=off');
-}
 
 const scenarios = {
     repayment: {
@@ -77,19 +74,29 @@ export function repay() {
         Object.assign({ tags: { name: 'POST /api/loans/{id}/repayments' } }, repaymentParams));
 }
 
+// timeout 0은 연결을 끊지 않고 데이터만 버린다. 요청은 펌뱅킹에 닿고 응답만 돌아오지 않는다.
 export function startFault() {
-    callFaultApi(FAULT_START_URL);
+    const toxic = {
+        name: FAULT_TOXIC_NAME,
+        type: 'timeout',
+        stream: 'downstream',
+        attributes: { timeout: 0 },
+    };
+    const response = http.post(`${TOXIPROXY_URL}/proxies/firmbanking/toxics`, JSON.stringify(toxic),
+        { headers: { 'Content-Type': 'application/json' }, tags: { name: 'fault' } });
+    checkFaultResponse(response, 200);
 }
 
 export function endFault() {
-    callFaultApi(FAULT_END_URL);
+    const response = http.del(`${TOXIPROXY_URL}/proxies/firmbanking/toxics/${FAULT_TOXIC_NAME}`, null,
+        { tags: { name: 'fault' } });
+    checkFaultResponse(response, 204);
 }
 
 // 장애를 켜고 끄지 못하면 시나리오가 성립하지 않으므로 바로 멈춘다.
-function callFaultApi(url) {
-    const response = http.post(url, null, { tags: { name: 'fault' } });
-    if (response.status !== 200) {
-        exec.test.abort(`장애 API 호출 실패: ${url} ${response.status}`);
+function checkFaultResponse(response, expectedStatus) {
+    if (response.status !== expectedStatus) {
+        exec.test.abort(`장애 API 호출 실패: ${response.request.method} ${response.url} ${response.status}`);
     }
 }
 

@@ -1,0 +1,8 @@
+[
+  {
+    "name": "firmbanking",
+    "listen": "0.0.0.0:9001",
+    "upstream": "firmbanking:9001",
+    "enabled": true
+  }
+]
