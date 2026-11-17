@@ -1,0 +1,26 @@
+# 부하 테스트 프로필. 상환 DB와 펌뱅킹은 다른 인스턴스에 있어 주소를 환경변수로 받는다.
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:repayment}?connectionTimeZone=Asia/Seoul&characterEncoding=UTF-8
+    hikari:
+      # 기본값과 같지만 테스트 조건이라 적어 둔다.
+      maximum-pool-size: 10
+
+server:
+  tomcat:
+    # 기본값과 같지만 테스트 조건이라 적어 둔다.
+    threads:
+      max: 200
+    accept-count: 100
+    # Tomcat 스레드 지표(tomcat.threads.*)는 MBean 등록을 켜야 나온다.
+    mbeanregistry:
+      enabled: true
+
+firmbanking:
+  host: ${FIRMBANKING_HOST:localhost}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus
