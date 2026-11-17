@@ -311,6 +311,40 @@ class CollectionRequestMapperIntegrationTest {
     }
 
     @Nested
+    @DisplayName("상태별 건수를 셀 때")
+    class 상태별_건수 {
+
+        @Test
+        @DisplayName("요청 2건, 집금 완료 1건, 상환 완료 1건이 있으면 요청 건수는 2다")
+        void 그_상태의_건만_센다() {
+            // given
+            insertWithStatus(loanAccountId, 1, CollectionRequestStatus.REQUESTED);
+            insertWithStatus(loanAccountId, 2, CollectionRequestStatus.REQUESTED);
+            insertWithStatus(loanAccountId, 3, CollectionRequestStatus.COLLECTED);
+            insertWithStatus(loanAccountId, 4, CollectionRequestStatus.COMPLETED);
+
+            // when
+            long count = collectionRequestMapper.countByStatus(CollectionRequestStatus.REQUESTED);
+
+            // then
+            assertThat(count).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("거절 상태 행이 없으면 거절 건수는 0이다")
+        void 행이_없으면_0() {
+            // given
+            insertWithStatus(loanAccountId, 1, CollectionRequestStatus.REQUESTED);
+
+            // when
+            long count = collectionRequestMapper.countByStatus(CollectionRequestStatus.FAILED);
+
+            // then
+            assertThat(count).isZero();
+        }
+    }
+
+    @Nested
     @DisplayName("재요청 시도를 기록할 때")
     class 재요청_시도_기록 {
 
