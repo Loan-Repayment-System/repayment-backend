@@ -3,9 +3,9 @@ import exec from 'k6/execution';
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
 
 /**
- * 펌뱅킹 장애 부하 테스트. 정상 3분 → 장애 10분 → 복구 15분 동안 상환과 대출 조회를 초당 요청 수 고정으로 보낸다.
+ * 펌뱅킹 장애 부하 테스트. 정상 3분 → 장애 10분 → 복구 15분 동안 상환을 초당 요청 수 고정으로 보낸다.
  * 장애는 펌뱅킹이 이체는 처리하고 응답을 보내지 않는 상태이고, 3분과 13분에 이 스크립트가 켜고 끈다.
- * FAULT=off면 장애 없이 돌려 비교할 기준값을 잰다.
+ * FAULT=off면 장애 없이 돌려 더미 데이터와 정합성 SQL이 맞는지 먼저 확인한다.
  */
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
@@ -33,15 +33,6 @@ const scenarios = {
         timeUnit: '1s',
         duration: `${TOTAL_MINUTES}m`,
         preAllocatedVUs: 200,
-        maxVUs: 400,
-    },
-    loan_inquiry: {
-        executor: 'constant-arrival-rate',
-        exec: 'inquire',
-        rate: 150,
-        timeUnit: '1s',
-        duration: `${TOTAL_MINUTES}m`,
-        preAllocatedVUs: 50,
         maxVUs: 400,
     },
 };
@@ -84,12 +75,6 @@ export function repay() {
     http.post(`${BASE_URL}/api/loans/${loanAccountId}/repayments`,
         JSON.stringify({ amount: REPAYMENT_AMOUNT }),
         Object.assign({ tags: { name: 'POST /api/loans/{id}/repayments' } }, repaymentParams));
-}
-
-export function inquire() {
-    const loanAccountId = LOAN_ID_START + Math.floor(Math.random() * LOAN_COUNT);
-    http.get(`${BASE_URL}/api/loans/${loanAccountId}`,
-        { tags: { name: 'GET /api/loans/{id}' } });
 }
 
 export function startFault() {

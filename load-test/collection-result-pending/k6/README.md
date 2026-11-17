@@ -1,6 +1,6 @@
 # 펌뱅킹 장애 부하 테스트
 
-정상 3분 → 장애 10분 → 복구 15분 동안 상환 초당 15건, 대출 조회 초당 150건을 보낸다.
+정상 3분 → 장애 10분 → 복구 15분 동안 상환을 초당 15건 보낸다.
 
 ## 환경 변수
 
@@ -16,7 +16,7 @@
 
 ## 실행
 
-1. 기준 실행: 장애 없이 돌려 비교할 기준값을 잰다.
+1. 기준 실행: 장애 없이 돌려 더미 데이터와 정합성 SQL이 맞는지 확인한다. 모든 상환이 200이어야 한다.
 
    ```bash
    FAULT=off k6 run load-test/collection-result-pending/k6/firmbanking-outage.js
@@ -35,12 +35,7 @@
 
 ## 보는 지표
 
-thresholds 없이 지표를 기준 실행과 비교해 판단한다.
-
 | 지표 | 보는 것 |
 |---|---|
-| `http_req_duration{name:GET /api/loans/{id}}` p95 | 장애 구간에 조회 응답 시간이 기준 실행보다 얼마나 늘었는지 |
-| `http_req_failed{name:GET /api/loans/{id}}` | 장애 구간에 조회 실패가 생기는지 |
 | `http_req_failed{name:POST /api/loans/{id}/repayments}` | 200, 202 말고 5xx나 시간 초과가 나는지 |
 | `dropped_iterations` | 0인지. 0이 아니면 의도한 초당 요청 수가 나가지 않은 것 |
-| `vus` | 장애 구간에 최대 400에 닿는지 |
