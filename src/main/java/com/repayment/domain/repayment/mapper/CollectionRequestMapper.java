@@ -24,6 +24,11 @@ public interface CollectionRequestMapper {
     List<CollectionRequestResponse> findRetryTargets(LocalDateTime now);
 
     /**
+     * 상태가 status인 집금 요청 건수를 센다.
+     */
+    long countByStatus(CollectionRequestStatus status);
+
+    /**
      * 시도 횟수를 1 올리고 다음 시도 시각을 바꾼다.
      */
     int updateRetryAttempt(@Param("collectionRequestId") Long collectionRequestId,

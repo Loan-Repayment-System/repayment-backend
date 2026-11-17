@@ -44,6 +44,12 @@
         ORDER BY next_retry_at, collection_request_id
     </select>
 
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*)
+        FROM collection_request
+        WHERE collection_request_status_id = #{status}
+    </select>
+
     <update id="updateRetryAttempt">
         UPDATE collection_request
         SET retry_count   = retry_count + 1,
