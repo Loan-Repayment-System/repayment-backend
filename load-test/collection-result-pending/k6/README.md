@@ -57,7 +57,7 @@
    docker compose up -d --force-recreate --renew-anon-volumes repayment-mysql firmbanking-mysql repayment firmbanking
    ```
 
-7. 장애 실행 후 5로 정합성을 확인한다. 3분에 Toxiproxy가 펌뱅킹 응답을 막고, 13분에 푼다.
+7. 장애 실행 후 5로 정합성을 확인한다. 3분에 Toxiproxy가 펌뱅킹 응답을 60초 늦추고, 13분에 푼다. 상환 서버는 응답 대기 5초를 넘겨 결과를 모르는 상태가 된다.
 
    ```bash
    docker compose run --rm k6

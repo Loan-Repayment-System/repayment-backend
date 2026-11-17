@@ -5,7 +5,7 @@ import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
 /**
  * 펌뱅킹 장애 부하 테스트. 정상 3분 → 장애 10분 → 복구 15분 동안 상환을 초당 요청 수 고정으로 보낸다.
  * 장애는 펌뱅킹이 이체는 처리하고 응답을 보내지 않는 상태이고, 3분과 13분에 이 스크립트가 켜고 끈다.
- * 상환 서버와 펌뱅킹 사이의 Toxiproxy에서 펌뱅킹 → 상환 서버 방향 데이터를 막아 만든다.
+ * 상환 서버와 펌뱅킹 사이의 Toxiproxy에서 펌뱅킹 → 상환 서버 방향 데이터를 늦춰 만든다.
  * FAULT=off면 장애 없이 돌려 더미 데이터와 정합성 SQL이 맞는지 먼저 확인한다.
  */
 
@@ -15,7 +15,8 @@ const LOAN_COUNT = Number(__ENV.LOAN_COUNT || 30000);
 const REPAYMENT_AMOUNT = Number(__ENV.REPAYMENT_AMOUNT || 10000);
 const FAULT_ENABLED = __ENV.FAULT !== 'off';
 const TOXIPROXY_URL = __ENV.TOXIPROXY_URL || 'http://localhost:8474';
-const FAULT_TOXIC_NAME = 'response-loss';
+const FAULT_TOXIC_NAME = 'response-delay';
+const FAULT_RESPONSE_DELAY_MS = 60000;
 
 const NORMAL_MINUTES = 3;
 const OUTAGE_MINUTES = 10;
@@ -74,13 +75,14 @@ export function repay() {
         Object.assign({ tags: { name: 'POST /api/loans/{id}/repayments' } }, repaymentParams));
 }
 
-// timeout 0은 연결을 끊지 않고 데이터만 버린다. 요청은 펌뱅킹에 닿고 응답만 돌아오지 않는다.
+// 요청은 펌뱅킹에 닿고, 응답과 연결 닫힘은 상환 서버의 응답 대기(5초)보다 늦게 돌아온다.
+// timeout toxic은 응답은 버려도 펌뱅킹이 연결을 닫는 것은 전달해, 응답 대기 전에 끊김으로 끝난다.
 export function startFault() {
     const toxic = {
         name: FAULT_TOXIC_NAME,
-        type: 'timeout',
+        type: 'latency',
         stream: 'downstream',
-        attributes: { timeout: 0 },
+        attributes: { latency: FAULT_RESPONSE_DELAY_MS },
     };
     const response = http.post(`${TOXIPROXY_URL}/proxies/firmbanking/toxics`, JSON.stringify(toxic),
         { headers: { 'Content-Type': 'application/json' }, tags: { name: 'fault' } });
