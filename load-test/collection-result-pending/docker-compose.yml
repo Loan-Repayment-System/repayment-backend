@@ -1,0 +1,113 @@
+# 펌뱅킹 장애 부하 테스트 환경. 이 폴더에서 `docker compose up -d --build`로 띄운다.
+# 펌뱅킹은 옆에 clone한 firmbanking-mock을 빌드한다. 다른 곳에 있으면 FIRMBANKING_MOCK_DIR로 경로를 넘긴다.
+# DB 계정은 이 환경에서만 쓰는 로컬 값이다.
+name: repayment-loadtest
+
+services:
+  repayment:
+    build: ../..
+    environment:
+      SPRING_PROFILES_ACTIVE: loadtest
+      MYSQL_HOST: repayment-mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: repayment
+      MYSQL_USER: repayment
+      MYSQL_PASSWORD: repayment1234
+      FIRMBANKING_HOST: firmbanking
+    depends_on:
+      repayment-mysql:
+        condition: service_healthy
+
+  repayment-mysql:
+    image: mysql:8.4
+    # 오프셋을 쓰는 이유는 루트 docker-compose.yml과 같다.
+    command: --default-time-zone=+09:00
+    environment:
+      TZ: Asia/Seoul
+      MYSQL_ROOT_PASSWORD: root1234
+      MYSQL_DATABASE: repayment
+      MYSQL_USER: repayment
+      MYSQL_PASSWORD: repayment1234
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot1234"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  firmbanking:
+    build: ${FIRMBANKING_MOCK_DIR:-../../../firmbanking-mock}
+    environment:
+      SPRING_PROFILES_ACTIVE: load
+      MYSQL_HOST: firmbanking-mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: firmbanking
+      MYSQL_USER: firmbanking
+      MYSQL_PASSWORD: firmbanking1234
+    depends_on:
+      firmbanking-mysql:
+        condition: service_healthy
+
+  firmbanking-mysql:
+    image: mysql:8.4
+    command: --default-time-zone=+09:00
+    environment:
+      TZ: Asia/Seoul
+      MYSQL_ROOT_PASSWORD: root1234
+      MYSQL_DATABASE: firmbanking
+      MYSQL_USER: firmbanking
+      MYSQL_PASSWORD: firmbanking1234
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot1234"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      # k6가 지표를 밀어 넣는 remote write를 받는다.
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # 기준 실행과 장애 실행을 나란히 비교하도록 지표를 남긴다.
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      # 로컬 전용이라 로그인 없이 연다.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  # 테스트할 때만 `docker compose run --rm k6`로 띄운다.
+  k6:
+    image: grafana/k6:1.1.0
+    profiles: ["k6"]
+    working_dir: /scripts
+    command: run -o experimental-prometheus-rw firmbanking-outage.js
+    environment:
+      BASE_URL: http://repayment:8080
+      FAULT: ${FAULT:-}
+      FAULT_START_URL: ${FAULT_START_URL:-}
+      FAULT_END_URL: ${FAULT_END_URL:-}
+      K6_PROMETHEUS_RW_SERVER_URL: http://prometheus:9090/api/v1/write
+      K6_PROMETHEUS_RW_TREND_STATS: p(95),p(99),max
+    volumes:
+      - ./k6:/scripts
+    depends_on:
+      - repayment
+      - prometheus
+
+volumes:
+  prometheus-data:

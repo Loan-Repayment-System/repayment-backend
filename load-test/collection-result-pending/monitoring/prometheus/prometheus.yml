@@ -1,0 +1,9 @@
+global:
+  # k6 remote write의 기본 전송 주기와 맞춘다.
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: repayment
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["repayment:8080"]
