@@ -16,7 +16,8 @@ services:
       MYSQL_DATABASE: repayment
       MYSQL_USER: repayment
       MYSQL_PASSWORD: repayment1234
-      FIRMBANKING_HOST: firmbanking
+      # 장애를 주입하도록 펌뱅킹에 바로 붙지 않고 Toxiproxy를 거친다.
+      FIRMBANKING_HOST: toxiproxy
     depends_on:
       repayment-mysql:
         condition: service_healthy
@@ -46,6 +47,9 @@ services:
       MYSQL_DATABASE: firmbanking
       MYSQL_USER: firmbanking
       MYSQL_PASSWORD: firmbanking1234
+      # 상환 서버 Tomcat 200 스레드가 동시에 보내도 큐에서 기다리지 않게 맞춘다.
+      TELEGRAM_THREADPOOLSIZE: 200
+      SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE: 20
     depends_on:
       firmbanking-mysql:
         condition: service_healthy
@@ -64,6 +68,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # 상환 서버와 펌뱅킹 사이의 중계 서버. k6가 API(8474)로 펌뱅킹 응답을 막고 푼다.
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: -host=0.0.0.0 -config=/config/toxiproxy.json
+    volumes:
+      - ./toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    depends_on:
+      - firmbanking
 
   prometheus:
     image: prom/prometheus:v3.5.0
@@ -102,14 +115,14 @@ services:
     environment:
       BASE_URL: http://repayment:8080
       FAULT: ${FAULT:-}
-      FAULT_START_URL: ${FAULT_START_URL:-}
-      FAULT_END_URL: ${FAULT_END_URL:-}
+      TOXIPROXY_URL: http://toxiproxy:8474
       K6_PROMETHEUS_RW_SERVER_URL: http://prometheus:9090/api/v1/write
       K6_PROMETHEUS_RW_TREND_STATS: p(95),p(99),max
     volumes:
       - ./k6:/scripts
     depends_on:
       - repayment
+      - toxiproxy
       - prometheus
 
 volumes:
