@@ -10,19 +10,28 @@
 | `LOAN_ID_START` | `1` | 더미 대출의 첫 번호 |
 | `LOAN_COUNT` | `30000` | 더미 대출 개수 |
 | `REPAYMENT_AMOUNT` | `10000` | 상환 1건 금액 |
+| `FAULT` | 켜짐 | `off`면 장애 없이 돌린다 |
 | `FAULT_START_URL` | 없음 | 펌뱅킹 장애 켜기 API. `POST`로 부르고 200을 기대한다 |
 | `FAULT_END_URL` | 없음 | 펌뱅킹 장애 끄기 API |
 
 ## 실행
 
-```bash
-FAULT_START_URL=<장애 켜기 API> FAULT_END_URL=<장애 끄기 API> \
-K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
-K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99),max \
-k6 run -o experimental-prometheus-rw load-test/collection-result-pending/k6/firmbanking-outage.js
-```
+1. 기준 실행: 장애 없이 돌려 더미 데이터와 정합성 SQL이 맞는지 확인한다. 모든 상환이 200이어야 한다.
 
-요약은 `summary.json`으로 남는다.
+   ```bash
+   FAULT=off k6 run load-test/collection-result-pending/k6/firmbanking-outage.js
+   ```
+
+2. 장애 실행
+
+   ```bash
+   FAULT_START_URL=<장애 켜기 API> FAULT_END_URL=<장애 끄기 API> \
+   K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
+   K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99),max \
+   k6 run -o experimental-prometheus-rw load-test/collection-result-pending/k6/firmbanking-outage.js
+   ```
+
+요약은 `summary-baseline.json`, `summary-outage.json`으로 남는다.
 
 ## 보는 지표
 

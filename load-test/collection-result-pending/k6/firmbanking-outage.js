@@ -5,12 +5,14 @@ import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
 /**
  * 펌뱅킹 장애 부하 테스트. 정상 3분 → 장애 10분 → 복구 15분 동안 상환을 초당 요청 수 고정으로 보낸다.
  * 장애는 펌뱅킹이 이체는 처리하고 응답을 보내지 않는 상태이고, 3분과 13분에 이 스크립트가 켜고 끈다.
+ * FAULT=off면 장애 없이 돌려 더미 데이터와 정합성 SQL이 맞는지 먼저 확인한다.
  */
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const LOAN_ID_START = Number(__ENV.LOAN_ID_START || 1);
 const LOAN_COUNT = Number(__ENV.LOAN_COUNT || 30000);
 const REPAYMENT_AMOUNT = Number(__ENV.REPAYMENT_AMOUNT || 10000);
+const FAULT_ENABLED = __ENV.FAULT !== 'off';
 const FAULT_START_URL = __ENV.FAULT_START_URL;
 const FAULT_END_URL = __ENV.FAULT_END_URL;
 
@@ -19,8 +21,8 @@ const OUTAGE_MINUTES = 10;
 const RECOVERY_MINUTES = 15;
 const TOTAL_MINUTES = NORMAL_MINUTES + OUTAGE_MINUTES + RECOVERY_MINUTES;
 
-if (!FAULT_START_URL || !FAULT_END_URL) {
-    throw new Error('FAULT_START_URL, FAULT_END_URL이 필요하다');
+if (FAULT_ENABLED && (!FAULT_START_URL || !FAULT_END_URL)) {
+    throw new Error('FAULT_START_URL, FAULT_END_URL이 필요하다. 장애 없이 돌리려면 FAULT=off');
 }
 
 const scenarios = {
@@ -33,21 +35,24 @@ const scenarios = {
         preAllocatedVUs: 200,
         maxVUs: 400,
     },
-    fault_start: {
+};
+
+if (FAULT_ENABLED) {
+    scenarios.fault_start = {
         executor: 'shared-iterations',
         exec: 'startFault',
         vus: 1,
         iterations: 1,
         startTime: `${NORMAL_MINUTES}m`,
-    },
-    fault_end: {
+    };
+    scenarios.fault_end = {
         executor: 'shared-iterations',
         exec: 'endFault',
         vus: 1,
         iterations: 1,
         startTime: `${NORMAL_MINUTES + OUTAGE_MINUTES}m`,
-    },
-};
+    };
+}
 
 export const options = {
     scenarios,
@@ -91,6 +96,6 @@ function callFaultApi(url) {
 export function handleSummary(data) {
     return {
         stdout: textSummary(data, { indent: ' ', enableColors: true }),
-        'summary.json': JSON.stringify(data, null, 2),
+        [`summary-${FAULT_ENABLED ? 'outage' : 'baseline'}.json`]: JSON.stringify(data, null, 2),
     };
 }
