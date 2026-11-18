@@ -6,7 +6,7 @@ import com.repayment.global.exception.CollectionRejectedException;
 import java.time.LocalDate;
 
 /**
- * 집금이 고객이 고칠 수 없는 이유로 거절됐다. 응답코드가 0000·B001·B003·C001이 아니다.
+ * 집금이 고객이 고칠 수 없는 이유로 거절됐다. 응답코드가 0000·B001·B003·C001·D003·9999가 아니다.
  */
 public class CollectionFailedException extends CollectionRejectedException {
 
