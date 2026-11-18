@@ -127,8 +127,35 @@ class CollectionServiceTest {
         }
 
         @Test
-        @DisplayName("9999면 응답코드 9999를 담은 거절 범주의 집금 실패 예외를 던진다")
+        @DisplayName("A001이면 응답코드 A001을 담은 거절 범주의 집금 실패 예외를 던진다")
         void 그_밖의_코드면_집금_실패_예외를_던진다() {
+            // given
+            givenResponseCode("A001");
+
+            // when
+            Throwable thrown = catchThrowable(() -> collect());
+
+            // then
+            assertThat(thrown).isInstanceOf(CollectionFailedException.class).isInstanceOf(CollectionRejectedException.class);
+            assertThat(((CollectionFailedException) thrown).getResponseCode()).isEqualTo("A001");
+        }
+
+        @Test
+        @DisplayName("D003이면 펌뱅킹이 처리 중이라 거래번호 20261016000001을 담은 결과 확인 중 예외를 던진다")
+        void 처리_중이면_결과_확인_중_예외를_던진다() {
+            // given
+            givenResponseCode("D003");
+
+            // when
+            Throwable thrown = catchThrowable(() -> collect());
+
+            // then
+            assertResultPending(thrown);
+        }
+
+        @Test
+        @DisplayName("9999면 이체 여부를 알 수 없어 거래번호 20261016000001을 담은 결과 확인 중 예외를 던진다")
+        void 시스템_오류면_결과_확인_중_예외를_던진다() {
             // given
             givenResponseCode("9999");
 
@@ -136,8 +163,7 @@ class CollectionServiceTest {
             Throwable thrown = catchThrowable(() -> collect());
 
             // then
-            assertThat(thrown).isInstanceOf(CollectionFailedException.class).isInstanceOf(CollectionRejectedException.class);
-            assertThat(((CollectionFailedException) thrown).getResponseCode()).isEqualTo("9999");
+            assertResultPending(thrown);
         }
 
         @Test
@@ -244,6 +270,60 @@ class CollectionServiceTest {
             then(firmbankingClient).should(times(1))
                     .requestCollection(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT);
         }
+
+        @Test
+        @DisplayName("D003이면 응답을 받은 것이라 다시 보내지 않고, 펌뱅킹을 1번만 불러 결과 확인 중 예외를 던진다")
+        void 처리_중이면_다시_보내지_않는다() {
+            // given
+            givenResponseCode("D003");
+
+            // when
+            Throwable thrown = catchThrowable(() -> collectWithImmediateRetry());
+
+            // then
+            assertResultPending(thrown);
+            then(firmbankingClient).should(times(1))
+                    .requestCollection(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT);
+        }
+
+        @Test
+        @DisplayName("9999면 응답을 받은 것이라 다시 보내지 않고, 펌뱅킹을 1번만 불러 결과 확인 중 예외를 던진다")
+        void 시스템_오류면_다시_보내지_않는다() {
+            // given
+            givenResponseCode("9999");
+
+            // when
+            Throwable thrown = catchThrowable(() -> collectWithImmediateRetry());
+
+            // then
+            assertResultPending(thrown);
+            then(firmbankingClient).should(times(1))
+                    .requestCollection(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT);
+        }
+
+        @Test
+        @DisplayName("다시 보낸 요청이 D003이면 펌뱅킹을 2번 부르고 결과 확인 중 예외를 던진다")
+        void 다시_보내서_처리_중이면_결과_확인_중_예외를_던진다() {
+            // given
+            given(firmbankingClient.requestCollection(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT))
+                    .willThrow(TIMEOUT)
+                    .willReturn("D003");
+
+            // when
+            Throwable thrown = catchThrowable(() -> collectWithImmediateRetry());
+
+            // then
+            assertResultPending(thrown);
+            then(firmbankingClient).should(times(2))
+                    .requestCollection(SENT_AT, TELEGRAM_NO, BANK_CODE, ACCOUNT_NO, AMOUNT);
+        }
+    }
+
+    private void assertResultPending(Throwable thrown) {
+        assertThat(thrown).isInstanceOf(CollectionResultPendingException.class)
+                .isNotInstanceOf(CollectionRejectedException.class);
+        RepaymentPendingResponse data = (RepaymentPendingResponse) ((CollectionResultPendingException) thrown).getData();
+        assertThat(data.getTransactionNo()).isEqualTo("20261016000001");
     }
 
     private void givenResponseCode(String responseCode) {

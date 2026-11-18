@@ -18,7 +18,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 저장한 집금 요청 그대로 펌뱅킹에 집금을 보내고, 0000이 아니면 응답코드에 맞는 거절 예외를 던진다.
  * 고객이 고칠 수 있는 코드(잔액 부족·출금 동의 없음·출금 계좌 없음)만 따로 던지고, 나머지는 집금 실패로 묶는다.
- * 응답을 받지 못하면 이체했는지 알 수 없으므로 거절로 보지 않고 결과 확인 중 예외를 던진다.
+ * 응답을 받지 못했거나 펌뱅킹이 처리 중·시스템 오류로 응답하면 이체했는지 알 수 없으므로 거절로 보지 않고 결과 확인 중 예외를 던진다.
  * 같은 집금 요청을 다시 보내도 펌뱅킹은 저장해 둔 결과를 돌려주므로 두 번 빠지지 않는다.
  */
 @Service
@@ -29,6 +29,8 @@ public class CollectionService {
     private static final String WITHDRAWAL_ACCOUNT_NOT_FOUND = "B001";
     private static final String INSUFFICIENT_BALANCE = "B003";
     private static final String CONSENT_NOT_REGISTERED = "C001";
+    private static final String TRANSFER_IN_PROGRESS = "D003";
+    private static final String SYSTEM_ERROR = "9999";
 
     private final FirmbankingClient firmbankingClient;
     private final FirmbankingProperties firmbankingProperties;
@@ -63,6 +65,7 @@ public class CollectionService {
             case WITHDRAWAL_ACCOUNT_NOT_FOUND -> throw new WithdrawalAccountNotFoundException(sendDate, telegramNo);
             case INSUFFICIENT_BALANCE -> throw new InsufficientBalanceException(sendDate, telegramNo);
             case CONSENT_NOT_REGISTERED -> throw new WithdrawalConsentNotRegisteredException(sendDate, telegramNo);
+            case TRANSFER_IN_PROGRESS, SYSTEM_ERROR -> throw new CollectionResultPendingException(request.getTransactionNo());
             default -> throw new CollectionFailedException(sendDate, telegramNo, responseCode);
         }
     }
