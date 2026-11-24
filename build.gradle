@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'jacoco'
+    id 'info.solidsoft.pitest' version '1.15.0'
     id 'org.springframework.boot' version '3.5.16'
     id 'io.spring.dependency-management' version '1.1.7'
 }
@@ -72,4 +73,35 @@ tasks.named('jacocoTestReport') {
 
 tasks.named('bootRun') {
     jvmArgs timezoneJvmArg
+}
+
+// 상환금 산정 로직(대출 스케줄 판정·대출 상태 판정·상태 변화에 따른 처리)만 변이시키고, 단위 테스트로만 잡는다.
+pitest {
+    pitestVersion = '1.17.0'
+    junit5PluginVersion = '1.2.1'
+    targetClasses = [
+            'com.repayment.domain.schedule.service.RepaymentAmountCalculator',
+            'com.repayment.domain.schedule.service.AppliedRateService',
+            'com.repayment.domain.schedule.service.RepaymentScheduleConfirmService',
+            'com.repayment.domain.schedule.service.RepaymentScheduleJudge',
+            'com.repayment.domain.schedule.service.RepaymentScheduleJudgmentService',
+            'com.repayment.domain.loan.service.LoanPayoffService',
+            'com.repayment.domain.loan.service.LoanStatusJudge',
+            'com.repayment.domain.loan.service.LoanStatusJudgmentService',
+            'com.repayment.domain.delinquency.service.DelinquencyChargeCalculator',
+            'com.repayment.domain.loan.service.LoanStatusUpdateService',
+            'com.repayment.domain.delinquency.service.InstallmentDelinquencyChargeService',
+            'com.repayment.domain.acceleration.service.AccelerationConversionService',
+            'com.repayment.domain.acceleration.service.AccelerationDailyChargeService',
+            'com.repayment.domain.maturity.service.MaturityOverdueConversionService',
+            'com.repayment.domain.maturity.service.MaturityOverdueDailyChargeService',
+            'com.repayment.domain.loan.service.LoanStatusChangeService'
+    ]
+    targetTests = ['com.repayment.domain.*']
+    excludedTestClasses = ['*IntegrationTest']
+    jvmArgs = [timezoneJvmArg]
+    mutators = ['ALL']
+    threads = 4
+    outputFormats = ['HTML', 'XML']
+    timestampedReports = false
 }
