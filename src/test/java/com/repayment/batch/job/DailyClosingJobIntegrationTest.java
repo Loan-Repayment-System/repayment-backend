@@ -7,10 +7,12 @@ import com.repayment.domain.loan.service.LoanStatusChangeService;
 import com.repayment.domain.loan.service.LoanStatusJudgmentService;
 import com.repayment.domain.schedule.service.RepaymentScheduleJudgmentService;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
@@ -60,6 +62,9 @@ class DailyClosingJobIntegrationTest {
     private JobLauncherTestUtils jobLauncherTestUtils;
 
     @Autowired
+    private Job dailyClosingJob;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
@@ -73,6 +78,12 @@ class DailyClosingJobIntegrationTest {
 
     @MockitoBean
     private LoanStatusChangeService loanStatusChangeService;
+
+    // Job이 여러 개라 JobLauncherTestUtils가 실행할 Job을 스스로 고르지 못한다.
+    @BeforeEach
+    void setUp() {
+        jobLauncherTestUtils.setJob(dailyClosingJob);
+    }
 
     @AfterEach
     void tearDown() {
