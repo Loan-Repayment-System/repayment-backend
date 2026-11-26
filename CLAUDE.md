@@ -167,6 +167,7 @@ src/main/resources/mapper/{도메인}/{대상}Mapper.xml
   | `loan_acceleration`, `loan_maturity_overdue` | `paid_*`(누적) |
   | `processing_failure` | `resolved_at`, `resolution_note` |
   | `collection_request` | `collection_request_status_id`, `retry_count`, `next_retry_at` |
+  | `auto_debit_agreement` | `auto_debit_agreement_status_id`, `end_date` |
 - 코드성 테이블의 id는 enum과 1:1이다. `V1__code_table_data.sql`의 id를 바꾸지 않고, 코드를 추가할 때는 새 마이그레이션과 enum을 함께 추가한다.
 
 ---
