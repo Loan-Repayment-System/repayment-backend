@@ -24,6 +24,11 @@ spring:
     job:
       # 기동 시 Job을 자동 실행하지 않는다.
       enabled: false
+  task:
+    scheduling:
+      pool:
+        # @Scheduled 메서드(일마감·집금 재요청·자동 이체 상환)마다 스레드 하나. 한 스케줄이 오래 돌아도 다른 스케줄이 기다리지 않는다.
+        size: 3
 
 bok:
   api:
