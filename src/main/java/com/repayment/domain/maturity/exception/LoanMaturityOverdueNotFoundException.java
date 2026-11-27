@@ -1,12 +1,12 @@
 package com.repayment.domain.maturity.exception;
 
 import com.repayment.global.code.ErrorCode;
-import com.repayment.global.exception.BusinessException;
+import com.repayment.global.exception.DataInconsistencyException;
 
 /**
  * 만기 경과로 전환한 기록(loan_maturity_overdue 행)이 없다.
  */
-public class LoanMaturityOverdueNotFoundException extends BusinessException {
+public class LoanMaturityOverdueNotFoundException extends DataInconsistencyException {
 
     private final Long loanAccountId;
 
