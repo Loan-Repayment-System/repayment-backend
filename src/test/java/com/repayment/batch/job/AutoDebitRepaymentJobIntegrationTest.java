@@ -2,6 +2,7 @@ package com.repayment.batch.job;
 
 import com.repayment.TestcontainersConfig;
 import com.repayment.domain.repayment.client.FirmbankingClient;
+import com.repayment.domain.repayment.service.RepayableAmountService;
 import com.repayment.global.code.AutoDebitAgreementStatus;
 import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.RepaymentChannel;
@@ -20,14 +21,17 @@ import org.springframework.batch.test.context.SpringBatchTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.LongStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,6 +39,9 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.times;
 
 /**
  * 약정·판정에 따라 어떤 대출을 자동 상환으로 상환하는지 검증한다.
@@ -67,6 +74,9 @@ class AutoDebitRepaymentJobIntegrationTest {
 
     @MockitoBean
     private FirmbankingClient firmbankingClient;
+
+    @MockitoSpyBean
+    private RepayableAmountService repayableAmountService;
 
     @BeforeEach
     void setUp() {
@@ -248,6 +258,144 @@ class AutoDebitRepaymentJobIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("대출 1·2·3의 1회차가 납부 기한 도래이고 대출 2의 갚을 금액 계산이 DB 일시 오류로 실패할 때")
+    class 계산_DB_일시_오류 {
+
+        @BeforeEach
+        void setUp() {
+            insertTargetLoans(1L, 2L, 3L);
+            givenResponseCode(SUCCESS);
+        }
+
+        // 실패 대처 case 2
+        @Test
+        @DisplayName("1번 실패한 뒤 성공하면 대출 2를 다시 계산하고, 대출 1·2·3을 1번씩 상환해 Job이 완료된다")
+        void 다시_계산해_모두_상환한다() throws Exception {
+            // given
+            willThrow(connectionFailure()).willCallRealMethod()
+                    .given(repayableAmountService).calculate(eq(2L), any());
+
+            // when
+            JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+            // then
+            assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+            assertThat(findRequestedLoanAccountIds()).containsExactly(1L, 2L, 3L);
+            assertThat(countRepayments()).isEqualTo(3);
+        }
+
+        // 실패 대처 case 2
+        @Test
+        @DisplayName("상한 3번 모두 실패하면 skip하지 않고 Job이 실패하며, 같은 chunk의 대출 1·2·3을 상환하지 않는다")
+        void 재시도를_소진하면_Job이_실패한다() throws Exception {
+            // given
+            willThrow(connectionFailure()).given(repayableAmountService).calculate(eq(2L), any());
+
+            // when
+            JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+            // then
+            assertThat(execution.getStatus()).isEqualTo(BatchStatus.FAILED);
+            then(repayableAmountService).should(times(3)).calculate(eq(2L), any());
+            assertThat(processSkipCount(execution)).isZero();
+            assertThat(countCollectionRequests()).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("대출 1·2·3의 1회차가 납부 기한 도래이고 대출 2의 판정과 기록이 맞지 않을 때")
+    class 데이터_불일치 {
+
+        @BeforeEach
+        void setUp() {
+            insertTargetLoans(1L, 2L, 3L);
+            givenResponseCode(SUCCESS);
+        }
+
+        // 실패 대처 case 2
+        @Test
+        @DisplayName("판정이 기한이익상실인데 기한이익상실 기록이 없으면 대출 2만 skip하고 대출 1·3을 상환해 Job이 완료된다")
+        void 기한이익상실_기록이_없으면_그_대출만_skip한다() throws Exception {
+            // given
+            insertJudgment(2L, LoanJudgmentStatus.INSTALLMENT_ACCELERATION);
+
+            // when
+            JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+            // then
+            assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+            assertThat(processSkipCount(execution)).isEqualTo(1);
+            assertThat(findRequestedLoanAccountIds()).containsExactly(1L, 3L);
+            assertThat(countRepayments()).isEqualTo(2);
+        }
+
+        // 실패 대처 case 2
+        @Test
+        @DisplayName("판정이 만기 경과인데 만기 경과 기록이 없으면 대출 2만 skip하고 대출 1·3을 상환해 Job이 완료된다")
+        void 만기_경과_기록이_없으면_그_대출만_skip한다() throws Exception {
+            // given
+            insertJudgment(2L, LoanJudgmentStatus.MATURITY_OVERDUE);
+
+            // when
+            JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+            // then
+            assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+            assertThat(processSkipCount(execution)).isEqualTo(1);
+            assertThat(findRequestedLoanAccountIds()).containsExactly(1L, 3L);
+            assertThat(countRepayments()).isEqualTo(2);
+        }
+    }
+
+    @Nested
+    @DisplayName("판정이 기한이익상실인데 기한이익상실 기록이 없는 대출이 skip limit 100을 넘는 101건일 때")
+    class 데이터_불일치_skip_limit_초과 {
+
+        // 실패 대처 case 2
+        @Test
+        @DisplayName("Job이 실패한다")
+        void Job이_실패한다() throws Exception {
+            // given
+            LongStream.rangeClosed(1, 101).forEach(loanAccountId -> {
+                insertLoanAccount(loanAccountId);
+                insertAgreement(loanAccountId, AutoDebitAgreementStatus.ACTIVE, "2026-10-01", null);
+                insertJudgment(loanAccountId, LoanJudgmentStatus.INSTALLMENT_ACCELERATION);
+            });
+
+            // when
+            JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+            // then
+            assertThat(execution.getStatus()).isEqualTo(BatchStatus.FAILED);
+            assertThat(countCollectionRequests()).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("대출 1·2·3의 1회차가 납부 기한 도래이고 대출 2의 갚을 금액 계산이 데이터 불일치 밖의 예외로 실패할 때")
+    class 그_밖의_예외 {
+
+        // 실패 대처 case 2
+        @Test
+        @DisplayName("코드 id가 없는 IllegalArgumentException이면 skip하지 않고 Job이 실패한다")
+        void skip하지_않고_Job이_실패한다() throws Exception {
+            // given
+            insertTargetLoans(1L, 2L, 3L);
+            givenResponseCode(SUCCESS);
+            willThrow(new IllegalArgumentException("LoanJudgmentStatus에 id 99인 코드가 없습니다."))
+                    .given(repayableAmountService).calculate(eq(2L), any());
+
+            // when
+            JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+            // then
+            assertThat(execution.getStatus()).isEqualTo(BatchStatus.FAILED);
+            assertThat(processSkipCount(execution)).isZero();
+            assertThat(countCollectionRequests()).isZero();
+        }
+    }
+
     private JobParameters jobParameters() {
         return new JobParametersBuilder()
                 .addLocalDate("businessDate", TODAY)
@@ -266,16 +414,22 @@ class AutoDebitRepaymentJobIntegrationTest {
                 + "start_date, end_date) VALUES (?, ?, ?, ?)", loanAccountId, status.getId(), startDate, endDate);
     }
 
+    // 약정이 사용 중이고 1회차가 납부 기한 도래인 대출들
+    private void insertTargetLoans(long... loanAccountIds) {
+        for (long loanAccountId : loanAccountIds) {
+            insertLoanWithFirstInstallmentDue(loanAccountId, String.format("200-000-%06d", loanAccountId));
+            insertAgreement(loanAccountId, AutoDebitAgreementStatus.ACTIVE, "2026-10-01", null);
+        }
+    }
+
+    private void insertJudgment(long loanAccountId, LoanJudgmentStatus status) {
+        jdbcTemplate.update("INSERT INTO loan_status_judgment (loan_account_id, business_date, "
+                + "loan_judgment_status_id) VALUES (?, '2026-10-16', ?)", loanAccountId, status.getId());
+    }
+
     // 2026-09-17 계약, 원금 12,000,000원, 12회 원리금균등. 1회차(10/17)만 확정되어 납부 기한 도래다.
     private void insertLoanWithFirstInstallmentDue(long loanAccountId, String repaymentAccountNo) {
-        jdbcTemplate.update("INSERT INTO loan_contract (loan_contract_id, loan_product_id, member_id, contract_date, "
-                + "maturity_date, contract_principal, contract_additional_rate, contract_base_rate, "
-                + "total_installments) VALUES (?, 1, 1, '2026-09-17', '2027-09-17', 12000000, 2.00000, 3.00000, 12)",
-                loanAccountId);
-        jdbcTemplate.update("INSERT INTO loan_account (loan_account_id, loan_contract_id, repayment_bank_code, "
-                + "repayment_account_no, account_no, loan_status_id, loan_principal_balance, monthly_payment_day) "
-                + "VALUES (?, ?, '999', ?, ?, 1, 12000000, 17)",
-                loanAccountId, loanAccountId, repaymentAccountNo, "900-000-00000" + loanAccountId);
+        insertLoanAccount(loanAccountId, repaymentAccountNo);
         jdbcTemplate.update("INSERT INTO repayment_schedule (loan_account_id, installment_no, "
                 + "repayment_schedule_status_id, scheduled_date, scheduled_principal, scheduled_interest, "
                 + "applied_base_rate, applied_additional_rate, confirmed_at) "
@@ -287,6 +441,36 @@ class AutoDebitRepaymentJobIntegrationTest {
                 + "    SELECT 2 UNION ALL SELECT installment_no + 1 FROM installment WHERE installment_no < 12) "
                 + "SELECT ?, installment_no, 1, DATE_ADD('2026-09-17', INTERVAL installment_no MONTH) "
                 + "FROM installment", loanAccountId);
+    }
+
+    // 상환 계획 없이 계약과 대출 계좌만 넣는다.
+    private void insertLoanAccount(long loanAccountId) {
+        insertLoanAccount(loanAccountId, String.format("200-000-%06d", loanAccountId));
+    }
+
+    private void insertLoanAccount(long loanAccountId, String repaymentAccountNo) {
+        jdbcTemplate.update("INSERT INTO loan_contract (loan_contract_id, loan_product_id, member_id, contract_date, "
+                + "maturity_date, contract_principal, contract_additional_rate, contract_base_rate, "
+                + "total_installments) VALUES (?, 1, 1, '2026-09-17', '2027-09-17', 12000000, 2.00000, 3.00000, 12)",
+                loanAccountId);
+        jdbcTemplate.update("INSERT INTO loan_account (loan_account_id, loan_contract_id, repayment_bank_code, "
+                + "repayment_account_no, account_no, loan_status_id, loan_principal_balance, monthly_payment_day) "
+                + "VALUES (?, ?, '999', ?, ?, 1, 12000000, 17)",
+                loanAccountId, loanAccountId, repaymentAccountNo, String.format("900-000-%06d", loanAccountId));
+    }
+
+    private CannotGetJdbcConnectionException connectionFailure() {
+        return new CannotGetJdbcConnectionException("커넥션 획득 실패");
+    }
+
+    // StepExecution을 돌려주는 메서드는 @SpringBatchTest가 Step 범위용 팩토리로 잘못 집으므로 건수를 바로 돌려준다.
+    private long processSkipCount(JobExecution execution) {
+        return execution.getStepExecutions().iterator().next().getProcessSkipCount();
+    }
+
+    private List<Long> findRequestedLoanAccountIds() {
+        return jdbcTemplate.queryForList("SELECT loan_account_id FROM collection_request ORDER BY loan_account_id",
+                Long.class);
     }
 
     private List<Integer> findRequestStatusIds() {
