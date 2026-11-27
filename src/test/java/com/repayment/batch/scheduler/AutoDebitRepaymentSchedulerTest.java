@@ -8,10 +8,18 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobInstance;
+import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
@@ -21,11 +29,12 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.times;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 @DisplayName("자동 이체 상환 스케줄 실행")
 class AutoDebitRepaymentSchedulerTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 17);
 
     @Mock
     private AutoDebitRepaymentJobRunner autoDebitRepaymentJobRunner;
@@ -49,6 +58,51 @@ class AutoDebitRepaymentSchedulerTest {
             // then
             assertThat(thrown).isNull();
             then(autoDebitRepaymentJobRunner).should(times(1)).run();
+        }
+    }
+
+    @Nested
+    @DisplayName("Job이 끝난 뒤 로그를 남길 때")
+    class 종료_로그 {
+
+        // 실패 대처 case 1
+        @Test
+        @DisplayName("Job 실행 7이 커넥션 획득 실패로 실패하면 기준일, 상태, 실행 ID, 실패 원인을 에러 로그로 남긴다")
+        void 실패하면_에러_로그를_남긴다(CapturedOutput output) throws Exception {
+            // given
+            JobExecution execution = jobExecution(7L, BatchStatus.FAILED);
+            execution.addFailureException(new CannotGetJdbcConnectionException("커넥션 획득 실패"));
+            given(autoDebitRepaymentJobRunner.run()).willReturn(execution);
+
+            // when
+            scheduler.run();
+
+            // then
+            assertThat(output.getOut())
+                    .contains("ERROR")
+                    .contains("자동 이체 상환 Job 미완료 businessDate=2026-10-17 status=FAILED jobExecutionId=7")
+                    .contains(CannotGetJdbcConnectionException.class.getName() + ": 커넥션 획득 실패");
+        }
+
+        // 실패 대처 case 1
+        @Test
+        @DisplayName("Job이 완료되면 에러 로그를 남기지 않는다")
+        void 완료되면_에러_로그를_남기지_않는다(CapturedOutput output) throws Exception {
+            // given
+            given(autoDebitRepaymentJobRunner.run()).willReturn(jobExecution(7L, BatchStatus.COMPLETED));
+
+            // when
+            scheduler.run();
+
+            // then
+            assertThat(output.getOut()).doesNotContain("ERROR");
+        }
+
+        private JobExecution jobExecution(long id, BatchStatus status) {
+            JobExecution execution = new JobExecution(new JobInstance(1L, "autoDebitRepaymentJob"), id,
+                    new JobParametersBuilder().addLocalDate("businessDate", TODAY).toJobParameters());
+            execution.setStatus(status);
+            return execution;
         }
     }
 
