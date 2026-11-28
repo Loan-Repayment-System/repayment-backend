@@ -45,7 +45,8 @@ public class AutoDebitRepaymentJobConfig {
 
     // 상환이 집금 앞뒤로 트랜잭션을 나누므로, chunk 트랜잭션에 합쳐지지 않도록 Step 트랜잭션을 쓰지 않는다.
     // DB 일시 오류는 다시 계산하고, 소진하면 Job을 실패시킨다. 대출 데이터 불일치는 그 대출만 skip한다.
-    // Writer가 예외를 던지면 retry·skip이 chunk를 다시 써 이중 출금하므로, Writer는 예외를 밖으로 던지지 않는다.
+    // Writer가 retry·skip 대상 예외를 던지면 chunk를 다시 써 이중 출금하므로, Writer는 그런 예외를 밖으로 던지지 않는다.
+    // DB 장애일 때만 어느 쪽에도 들지 않는 예외로 감싸 던져, chunk를 다시 쓰지 않고 Step을 멈춘다.
     @Bean
     public Step autoDebitRepaymentStep(JobRepository jobRepository,
                                        JdbcPagingItemReader<Long> autoDebitRepaymentTargetReader,

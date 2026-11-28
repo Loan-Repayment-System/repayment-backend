@@ -2,7 +2,9 @@ package com.repayment.batch.job;
 
 import com.repayment.TestcontainersConfig;
 import com.repayment.domain.repayment.client.FirmbankingClient;
+import com.repayment.domain.repayment.exception.AutoDebitRepaymentAbortedException;
 import com.repayment.domain.repayment.service.RepayableAmountService;
+import com.repayment.domain.repayment.service.RepaymentService;
 import com.repayment.global.code.AutoDebitAgreementStatus;
 import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.RepaymentChannel;
@@ -26,6 +28,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -77,6 +80,9 @@ class AutoDebitRepaymentJobIntegrationTest {
 
     @MockitoSpyBean
     private RepayableAmountService repayableAmountService;
+
+    @MockitoSpyBean
+    private RepaymentService repaymentService;
 
     @BeforeEach
     void setUp() {
@@ -393,6 +399,32 @@ class AutoDebitRepaymentJobIntegrationTest {
             assertThat(execution.getStatus()).isEqualTo(BatchStatus.FAILED);
             assertThat(processSkipCount(execution)).isZero();
             assertThat(countCollectionRequests()).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("대상 대출 1건의 상환이 다시 시도하고도 커넥션 획득 실패로 끝날 때")
+    class 상환_DB_장애 {
+
+        // 실패 대처 case 3
+        @Test
+        @DisplayName("Writer가 중단 예외를 던지면 Job이 실패하고, chunk를 다시 쓰지 않아 상환은 정확히 1번 부른다")
+        void chunk를_다시_쓰지_않고_Job이_실패한다() throws Exception {
+            // given
+            insertLoanWithFirstInstallmentDue(1L, "200-000-000001");
+            insertAgreement(1L, AutoDebitAgreementStatus.ACTIVE, "2026-10-01", null);
+            willThrow(new CannotCreateTransactionException("connection"))
+                    .given(repaymentService).repay(eq(1L), any(), eq(RepaymentChannel.AUTO));
+
+            // when
+            JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+            // then
+            assertThat(execution.getStatus()).isEqualTo(BatchStatus.FAILED);
+            // Spring Batch가 Writer 예외를 ExhaustedRetryException으로 감싸 Step 실패 원인으로 남긴다.
+            assertThat(execution.getAllFailureExceptions())
+                    .anySatisfy(e -> assertThat(e).hasCauseInstanceOf(AutoDebitRepaymentAbortedException.class));
+            then(repaymentService).should(times(1)).repay(eq(1L), any(), eq(RepaymentChannel.AUTO));
         }
     }
 
