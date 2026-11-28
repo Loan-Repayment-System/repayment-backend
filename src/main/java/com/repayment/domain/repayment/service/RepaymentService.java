@@ -12,6 +12,7 @@ import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.RepaymentChannel;
 import com.repayment.global.exception.CollectionRejectedException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -24,6 +25,7 @@ import java.time.temporal.ChronoUnit;
  * 상환 요청 1건을 처리한다. 채널(고객 상환·자동 상환)은 부르는 쪽이 정해 넘긴다.
  * 집금은 DB 롤백으로 되돌릴 수 없어서, 트랜잭션을 집금 앞뒤로 나눈다.
  * 집금 요청 저장(TX1) → 집금 → 상환 반영(TX2) 순서로 하고, 집금 결과는 집금 요청의 상태로 남긴다.
+ * TX1만 일시적 DB 오류에 다시 시도한다. 집금 뒤 단계를 처음부터 다시 하면 출금이 두 번 될 수 있다.
  *
  * <ul>
  *   <li>거절 응답: 거절 상태로 바꾸고 거절 예외를 그대로 던진다.</li>
@@ -42,6 +44,7 @@ public class RepaymentService {
     private final LoanAccountMapper loanAccountMapper;
     private final LoanStatusJudgmentMapper loanStatusJudgmentMapper;
     private final RepayableAmountService repayableAmountService;
+    private final RetryTemplate collectionRequestRetryTemplate;
     private final Clock clock;
 
     public RepaymentResultResponse repay(Long loanAccountId, BigDecimal amount, RepaymentChannel channel) {
@@ -49,7 +52,9 @@ public class RepaymentService {
         // DATETIME은 초 미만을 반올림해 저장하므로, 저장할 값과 돌려줄 값이 같도록 먼저 버린다.
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
 
-        CollectionRequestResponse request = collectionRequestService.create(loanAccountId, amount, channel, now);
+        // 시도마다 새 트랜잭션이고, 실패한 시도는 롤백되어 남는 것이 없다.
+        CollectionRequestResponse request = collectionRequestRetryTemplate.execute(
+                context -> collectionRequestService.create(loanAccountId, amount, channel, now));
         collect(request);
         reflect(request);
         return readResult(loanAccountId, amount, now, now.toLocalDate());

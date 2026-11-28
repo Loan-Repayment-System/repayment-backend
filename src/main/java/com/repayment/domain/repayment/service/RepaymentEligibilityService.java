@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * 대출을 잠그고 지금 받을 수 없는 상환 요청을 거절한다. 위에서부터 검사해 처음 걸린 것으로 거절한다.
@@ -35,8 +37,21 @@ public class RepaymentEligibilityService {
     private final LoanStatusJudgmentMapper loanStatusJudgmentMapper;
     private final RepayableAmountService repayableAmountService;
 
+    // 상환 반영용. 이미 출금된 건이라 같은 대출의 다른 상환이 끝날 때까지 기다린다.
     @Transactional
     public RepaymentEligibilityResponse check(Long loanAccountId, BigDecimal amount, LocalDate businessDate) {
+        return check(loanAccountId, amount, businessDate, loanAccountMapper::findRepaymentLoanAccountForUpdate);
+    }
+
+    // 집금 요청 저장용. 잠금이 잡혀 있으면 기다리지 않고 바로 실패해, 부르는 쪽이 잠시 뒤 다시 시도한다.
+    @Transactional
+    public RepaymentEligibilityResponse checkWithoutWaiting(Long loanAccountId, BigDecimal amount,
+                                                            LocalDate businessDate) {
+        return check(loanAccountId, amount, businessDate, loanAccountMapper::findRepaymentLoanAccountForUpdateNowait);
+    }
+
+    private RepaymentEligibilityResponse check(Long loanAccountId, BigDecimal amount, LocalDate businessDate,
+                                               Function<Long, Optional<RepaymentLoanAccountResponse>> lockLoanAccount) {
         // 대출과 상관없는 조건이라, 어차피 거절할 요청이 대출을 잠그지 않도록 먼저 본다.
         boolean closingCompleted = dailyClosingMapper.findStatusByBusinessDate(businessDate)
                 .filter(status -> status == DailyClosingStatus.COMPLETED)
@@ -45,7 +60,7 @@ public class RepaymentEligibilityService {
             throw new RepaymentUnavailableDuringClosingException(businessDate);
         }
 
-        RepaymentLoanAccountResponse loanAccount = loanAccountMapper.findRepaymentLoanAccountForUpdate(loanAccountId)
+        RepaymentLoanAccountResponse loanAccount = lockLoanAccount.apply(loanAccountId)
                 .orElseThrow(() -> new LoanAccountNotFoundException(loanAccountId));
         if (!isValidAmount(amount)) {
             throw new InvalidRepaymentAmountException(amount);

@@ -5,20 +5,18 @@ import com.repayment.batch.processor.AutoDebitRepaymentProcessor;
 import com.repayment.batch.writer.AutoDebitRepaymentWriter;
 import com.repayment.domain.repayment.dto.response.AutoDebitTargetResponse;
 import com.repayment.global.exception.DataInconsistencyException;
+import com.repayment.global.util.TransientDatabaseErrors;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.step.builder.FaultTolerantStepBuilder;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.database.JdbcPagingItemReader;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.dao.RecoverableDataAccessException;
-import org.springframework.dao.TransientDataAccessException;
 import org.springframework.retry.backoff.ExponentialBackOffPolicy;
-import org.springframework.transaction.CannotCreateTransactionException;
 
 /**
  * 자동 이체 상환 Job. 파라미터는 businessDate(기준일)와 requestedAt(실행마다 새 JobInstance가 되도록 넣는 요청 시각)이다.
@@ -59,16 +57,15 @@ public class AutoDebitRepaymentJobConfig {
         backOffPolicy.setMultiplier(BACKOFF_MULTIPLIER);
         backOffPolicy.setMaxInterval(MAX_BACKOFF_MILLIS);
 
-        return new StepBuilder("autoDebitRepaymentStep", jobRepository)
-                .<Long, AutoDebitTargetResponse>chunk(CHUNK_SIZE, new ResourcelessTransactionManager())
-                .reader(autoDebitRepaymentTargetReader)
-                .processor(autoDebitRepaymentProcessor)
-                .writer(autoDebitRepaymentWriter)
-                .faultTolerant()
-                .retry(TransientDataAccessException.class)
-                .retry(RecoverableDataAccessException.class)
-                .retry(DataAccessResourceFailureException.class)
-                .retry(CannotCreateTransactionException.class)
+        FaultTolerantStepBuilder<Long, AutoDebitTargetResponse> builder =
+                new StepBuilder("autoDebitRepaymentStep", jobRepository)
+                        .<Long, AutoDebitTargetResponse>chunk(CHUNK_SIZE, new ResourcelessTransactionManager())
+                        .reader(autoDebitRepaymentTargetReader)
+                        .processor(autoDebitRepaymentProcessor)
+                        .writer(autoDebitRepaymentWriter)
+                        .faultTolerant();
+        TransientDatabaseErrors.TYPES.forEach(builder::retry);
+        return builder
                 .retryLimit(MAX_PROCESS_ATTEMPTS)
                 .backOffPolicy(backOffPolicy)
                 .skip(DataInconsistencyException.class)

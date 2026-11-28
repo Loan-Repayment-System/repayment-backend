@@ -86,6 +86,22 @@ class CollectionRequestServiceTest {
         }
 
         @Test
+        @DisplayName("대출 잠금을 기다리지 않는 확인을 부르고, 상환 반영이 쓰는 기다리는 확인은 부르지 않는다")
+        void 기다리지_않는_확인을_부른다() {
+            // given
+            givenEligible();
+            given(collectionRequestMapper.existsInProgressByLoanAccountId(LOAN_ACCOUNT_ID)).willReturn(false);
+            given(telegramNoService.next(SEND_DATE)).willReturn(7);
+
+            // when
+            create();
+
+            // then
+            then(repaymentEligibilityService).should().checkWithoutWaiting(LOAN_ACCOUNT_ID, AMOUNT, SEND_DATE);
+            then(repaymentEligibilityService).should(never()).check(any(), any(), any());
+        }
+
+        @Test
         @DisplayName("처리 중인 상환이 있으면 처리 중인 상환 있음 예외를 던지고, 채번하지 않고 저장하지 않는다")
         void 처리_중인_상환이_있으면_거절한다() {
             // given
@@ -110,7 +126,7 @@ class CollectionRequestServiceTest {
         @DisplayName("완제 예외를 그대로 던지고, 처리 중인 상환 확인 · 채번 · 저장을 하지 않는다")
         void 확인_예외를_그대로_던진다() {
             // given
-            given(repaymentEligibilityService.check(LOAN_ACCOUNT_ID, AMOUNT, SEND_DATE))
+            given(repaymentEligibilityService.checkWithoutWaiting(LOAN_ACCOUNT_ID, AMOUNT, SEND_DATE))
                     .willThrow(new LoanAlreadyPaidOffException(LOAN_ACCOUNT_ID));
 
             // when
@@ -193,7 +209,7 @@ class CollectionRequestServiceTest {
     }
 
     private void givenEligible() {
-        given(repaymentEligibilityService.check(LOAN_ACCOUNT_ID, AMOUNT, SEND_DATE)).willReturn(
+        given(repaymentEligibilityService.checkWithoutWaiting(LOAN_ACCOUNT_ID, AMOUNT, SEND_DATE)).willReturn(
                 new RepaymentEligibilityResponse("999", "200-000-000001", LoanJudgmentStatus.NORMAL,
                         new RepayableAmountResponse(AMOUNT, List.of())));
     }

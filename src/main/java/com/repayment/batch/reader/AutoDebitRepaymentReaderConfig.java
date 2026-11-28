@@ -2,15 +2,13 @@ package com.repayment.batch.reader;
 
 import com.repayment.global.code.AutoDebitAgreementStatus;
 import com.repayment.global.code.LoanJudgmentStatus;
+import com.repayment.global.util.TransientDatabaseErrors;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.item.database.Order;
 import org.springframework.batch.item.database.support.MySqlPagingQueryProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.dao.RecoverableDataAccessException;
-import org.springframework.dao.TransientDataAccessException;
 import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.SingleColumnRowMapper;
 import org.springframework.retry.support.RetryTemplate;
@@ -88,9 +86,7 @@ public class AutoDebitRepaymentReaderConfig {
     }
 
     private static boolean isTransientReadFailure(Throwable e) {
-        return e instanceof TransientDataAccessException
-                || e instanceof RecoverableDataAccessException
-                || e instanceof DataAccessResourceFailureException
+        return TransientDatabaseErrors.matches(e)
                 || (e instanceof UncategorizedSQLException uncategorized
                         && uncategorized.getSQLException() != null
                         && uncategorized.getSQLException().getErrorCode() == MYSQL_QUERY_TIMEOUT_ERROR_CODE);

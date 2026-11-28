@@ -13,6 +13,17 @@
         FOR UPDATE
     </select>
 
+    <!-- 다른 트랜잭션이 잠그고 있으면 기다리지 않고 바로 잠금 획득 실패로 끝난다. -->
+    <select id="findRepaymentLoanAccountForUpdateNowait"
+            resultType="com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse">
+        SELECT loan_account_id,
+               repayment_bank_code,
+               repayment_account_no
+        FROM loan_account
+        WHERE loan_account_id = #{loanAccountId}
+        FOR UPDATE NOWAIT
+    </select>
+
     <select id="findLoanAccountStatus"
             resultType="com.repayment.domain.loan.dto.response.LoanAccountStatusResponse">
         SELECT loan_principal_balance,
