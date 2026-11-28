@@ -57,7 +57,7 @@ firmbanking:
   retry-delay: 1s
 
 auto-debit-repayment:
-  # 집금 결과 확인 중이 이 건수만큼 연속이면 펌뱅킹 장애로 보고 Job을 멈춘다.
+  # 집금 결과 확인 중이 이 건수만큼 연속이면 Job을 멈춘다.
   pending-collection-limit: 3
 
 mybatis:
