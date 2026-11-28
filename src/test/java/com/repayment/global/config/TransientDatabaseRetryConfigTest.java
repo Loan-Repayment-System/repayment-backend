@@ -1,4 +1,4 @@
-package com.repayment.batch.reader;
+package com.repayment.global.config;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,24 +21,24 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // 대기 시간은 검증 대상이 아니라 대기 없이 돌린다. 재시도 횟수와 대상 예외는 설정 그대로 쓴다.
-@DisplayName("자동 이체 상환 Reader 재시도 설정")
-class AutoDebitRepaymentReaderConfigTest {
+@DisplayName("일시적 DB 오류 재시도 설정")
+class TransientDatabaseRetryConfigTest {
 
     private RetryTemplate retryTemplate;
 
     @BeforeEach
     void setUp() {
-        retryTemplate = new AutoDebitRepaymentReaderConfig().autoDebitTargetReadRetryTemplate();
+        retryTemplate = new TransientDatabaseRetryConfig().transientDatabaseRetryTemplate();
         retryTemplate.setBackOffPolicy(new NoBackOffPolicy());
     }
 
     @Nested
-    @DisplayName("다시 조회하면 나아질 수 있는 DB 오류일 때")
+    @DisplayName("다시 시도하면 나아질 수 있는 DB 오류일 때")
     class 재시도_대상 {
 
         // 실패 대처 case 1
         @ParameterizedTest(name = "{0}")
-        @MethodSource("com.repayment.batch.reader.AutoDebitRepaymentReaderConfigTest#transientFailures")
+        @MethodSource("com.repayment.global.config.TransientDatabaseRetryConfigTest#transientFailures")
         @DisplayName("계속 실패하면 3번 시도한 뒤 그 예외를 던진다")
         void 세_번_시도한다(String name, RuntimeException failure) {
             // given
@@ -54,12 +54,12 @@ class AutoDebitRepaymentReaderConfigTest {
     }
 
     @Nested
-    @DisplayName("다시 조회해도 같은 오류가 나는 DB 오류일 때")
+    @DisplayName("다시 시도해도 같은 오류가 나는 DB 오류일 때")
     class 재시도_대상_아님 {
 
         // 실패 대처 case 1
         @ParameterizedTest(name = "{0}")
-        @MethodSource("com.repayment.batch.reader.AutoDebitRepaymentReaderConfigTest#permanentFailures")
+        @MethodSource("com.repayment.global.config.TransientDatabaseRetryConfigTest#permanentFailures")
         @DisplayName("다시 시도하지 않고 1번 만에 그 예외를 던진다")
         void 한_번만_시도한다(String name, RuntimeException failure) {
             // given

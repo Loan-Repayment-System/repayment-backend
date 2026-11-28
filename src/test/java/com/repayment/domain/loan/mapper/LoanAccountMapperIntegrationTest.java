@@ -17,17 +17,25 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 @SpringBootTest
 @Import(TestcontainersConfig.class)
@@ -52,6 +60,9 @@ class LoanAccountMapperIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     private long memberId;
     private long contractId;
@@ -214,6 +225,28 @@ class LoanAccountMapperIntegrationTest {
 
             // then
             assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("다른 트랜잭션이 그 대출을 잠그고 있으면 기다리지 않고 1초 안에 잠금 획득 실패로 끝난다")
+        void 잠겨_있으면_바로_실패한다() throws Exception {
+            // given
+            long loanAccountId = insertLoanAccount("10000000");
+            loanAccountMapper.findRepaymentLoanAccountForUpdate(loanAccountId);
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+
+            // when
+            long startedAt = System.nanoTime();
+            Future<?> other = executor.submit(() -> transactionTemplate.execute(
+                    status -> loanAccountMapper.findRepaymentLoanAccountForUpdate(loanAccountId)));
+            Throwable thrown = catchThrowable(other::get);
+            Duration elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
+            executor.shutdown();
+
+            // then
+            assertThat(thrown).isInstanceOf(ExecutionException.class)
+                    .hasCauseInstanceOf(CannotAcquireLockException.class);
+            assertThat(elapsed).isLessThan(Duration.ofSeconds(1));
         }
     }
 

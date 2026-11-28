@@ -11,11 +11,13 @@ import com.repayment.domain.repayment.exception.CollectionResultPendingException
 import com.repayment.domain.repayment.exception.InsufficientBalanceException;
 import com.repayment.domain.repayment.exception.NothingToRepayException;
 import com.repayment.domain.repayment.exception.RepaymentAmountLeftOverException;
+import com.repayment.domain.repayment.exception.RepaymentInProgressException;
 import com.repayment.domain.repayment.exception.RepaymentReflectionPendingException;
 import com.repayment.global.code.CollectionRequestStatus;
 import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.LoanStatus;
 import com.repayment.global.code.RepaymentChannel;
+import com.repayment.global.config.TransientDatabaseRetryConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -24,6 +26,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.TransientDataAccessResourceException;
+import org.springframework.retry.backoff.NoBackOffPolicy;
+import org.springframework.retry.support.RetryTemplate;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
@@ -43,6 +50,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("상환 처리")
@@ -92,8 +100,11 @@ class RepaymentServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(NOW.atZone(ZoneId.of("Asia/Seoul")).toInstant(), ZoneId.of("Asia/Seoul"));
+        // 운영과 같은 정책에서 시도 사이 대기만 뺀다.
+        RetryTemplate retryTemplate = new TransientDatabaseRetryConfig().transientDatabaseRetryTemplate();
+        retryTemplate.setBackOffPolicy(new NoBackOffPolicy());
         repaymentService = new RepaymentService(collectionRequestService, collectionService, repaymentReflectionService,
-                loanAccountMapper, loanStatusJudgmentMapper, repayableAmountService, clock);
+                loanAccountMapper, loanStatusJudgmentMapper, repayableAmountService, retryTemplate, clock);
     }
 
     @Nested
@@ -262,6 +273,90 @@ class RepaymentServiceTest {
             assertThat(thrown).isSameAs(rejected);
             then(collectionService).shouldHaveNoInteractions();
             then(repaymentReflectionService).shouldHaveNoInteractions();
+        }
+
+        @Test
+        @DisplayName("상환 진행 중으로 거절하면 다시 해도 같은 결과라 집금 요청 저장을 1번만 시도하고 같은 예외를 던진다")
+        void 업무_거절은_다시_시도하지_않는다() {
+            // given
+            RepaymentInProgressException rejected = new RepaymentInProgressException(LOAN_ACCOUNT_ID);
+            given(collectionRequestService.create(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER, SENT_AT))
+                    .willThrow(rejected);
+
+            // when
+            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER));
+
+            // then
+            assertThat(thrown).isSameAs(rejected);
+            then(collectionRequestService).should(times(1))
+                    .create(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER, SENT_AT);
+            then(collectionService).shouldHaveNoInteractions();
+        }
+    }
+
+    @Nested
+    @DisplayName("집금 요청 저장이 일시적 DB 오류로 실패할 때")
+    class 요청_저장_일시_오류 {
+
+        @Test
+        @DisplayName("첫 번째에 잠금 획득 실패, 두 번째에 저장되면 저장을 2번 시도하고 집금·반영은 1번씩 부른다")
+        void 다시_시도해_저장되면_상환까지_이어진다() {
+            // given
+            given(collectionRequestService.create(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER, SENT_AT))
+                    .willThrow(new CannotAcquireLockException("NOWAIT"))
+                    .willReturn(REQUEST);
+            givenResult("9000000", LoanStatus.NORMAL, LoanJudgmentStatus.NORMAL, "10000");
+
+            // when
+            repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER);
+
+            // then
+            then(collectionRequestService).should(times(2))
+                    .create(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER, SENT_AT);
+            then(collectionService).should(times(1)).collectWithImmediateRetry(REQUEST);
+            then(repaymentReflectionService).should(times(1)).reflect(REQUEST);
+        }
+
+        @Test
+        @DisplayName("3번 모두 커넥션 획득 실패면 저장을 3번에서 멈추고 마지막 예외를 그대로 던지며 집금은 부르지 않는다")
+        void 세_번_모두_실패하면_마지막_예외를_던진다() {
+            // given
+            CannotCreateTransactionException last = new CannotCreateTransactionException("third");
+            given(collectionRequestService.create(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER, SENT_AT))
+                    .willThrow(new CannotCreateTransactionException("first"),
+                            new CannotCreateTransactionException("second"), last);
+
+            // when
+            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER));
+
+            // then
+            assertThat(thrown).isSameAs(last);
+            then(collectionRequestService).should(times(3))
+                    .create(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER, SENT_AT);
+            then(collectionService).shouldHaveNoInteractions();
+        }
+    }
+
+    @Nested
+    @DisplayName("집금 요청을 저장한 뒤 일시적 DB 오류가 날 때")
+    class 요청_저장_뒤_일시_오류 {
+
+        @Test
+        @DisplayName("집금 완료로 바꾸다 실패하면 집금이 끝난 건이라 저장을 다시 시도하지 않고 1번만 부른다")
+        void 저장_뒤_단계는_다시_시도하지_않는다() {
+            // given
+            givenRequestCreated();
+            TransientDataAccessResourceException failed = new TransientDataAccessResourceException("connection lost");
+            willThrow(failed).given(collectionRequestService).markCollected(COLLECTION_REQUEST_ID);
+
+            // when
+            Throwable thrown = catchThrowable(() -> repaymentService.repay(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER));
+
+            // then
+            assertThat(thrown).isSameAs(failed);
+            then(collectionRequestService).should(times(1))
+                    .create(LOAN_ACCOUNT_ID, AMOUNT, RepaymentChannel.CUSTOMER, SENT_AT);
+            then(collectionService).should(times(1)).collectWithImmediateRetry(REQUEST);
         }
     }
 

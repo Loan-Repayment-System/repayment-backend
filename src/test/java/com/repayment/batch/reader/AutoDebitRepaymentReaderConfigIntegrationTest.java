@@ -2,6 +2,7 @@ package com.repayment.batch.reader;
 
 import com.repayment.TestcontainersConfig;
 import com.repayment.global.code.AutoDebitAgreementStatus;
+import com.repayment.global.config.TransientDatabaseRetryConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -178,7 +179,7 @@ class AutoDebitRepaymentReaderConfigIntegrationTest {
 
     // 대기 시간은 검증 대상이 아니라 대기 없이 돌린다. 재시도 횟수와 대상 예외는 설정 그대로 쓴다.
     private RetryTemplate retryTemplate() {
-        RetryTemplate retryTemplate = new AutoDebitRepaymentReaderConfig().autoDebitTargetReadRetryTemplate();
+        RetryTemplate retryTemplate = new TransientDatabaseRetryConfig().transientDatabaseRetryTemplate();
         retryTemplate.setBackOffPolicy(new NoBackOffPolicy());
         return retryTemplate;
     }

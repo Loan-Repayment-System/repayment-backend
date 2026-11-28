@@ -2,7 +2,10 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.repayment.domain.loan.mapper.LoanAccountMapper">
 
-    <!-- 같은 대출의 다른 상환은 이 트랜잭션이 끝날 때까지 기다린다. -->
+    <!--
+        같은 대출의 상환은 한 번에 하나만 잠근다. 다른 트랜잭션이 잠그고 있으면 기다리지 않고 바로 잠금 획득 실패로 끝난다.
+        상환 중 잠금이 오래 잡혀도 자동 이체 상환이 그 대출에서 멈추지 않게 한다.
+    -->
     <select id="findRepaymentLoanAccountForUpdate"
             resultType="com.repayment.domain.loan.dto.response.RepaymentLoanAccountResponse">
         SELECT loan_account_id,
@@ -10,7 +13,7 @@
                repayment_account_no
         FROM loan_account
         WHERE loan_account_id = #{loanAccountId}
-        FOR UPDATE
+        FOR UPDATE NOWAIT
     </select>
 
     <select id="findLoanAccountStatus"

@@ -8,10 +8,6 @@ import org.springframework.batch.item.database.support.MySqlPagingQueryProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.dao.RecoverableDataAccessException;
-import org.springframework.dao.TransientDataAccessException;
-import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.SingleColumnRowMapper;
 import org.springframework.retry.support.RetryTemplate;
 
@@ -32,20 +28,11 @@ public class AutoDebitRepaymentReaderConfig {
     // 페이지 조회 한 번의 제한 시간
     private static final int QUERY_TIMEOUT_MILLIS = 10_000;
 
-    // MAX_EXECUTION_TIME을 넘겨 중단된 쿼리의 MySQL 오류 코드. Spring이 분류하지 못해 UncategorizedSQLException으로 온다.
-    private static final int MYSQL_QUERY_TIMEOUT_ERROR_CODE = 3024;
-
-    // 처음 시도를 포함한 최대 시도 횟수. 시도 사이에 1초, 2초를 기다린다.
-    private static final int MAX_READ_ATTEMPTS = 3;
-    private static final long INITIAL_BACKOFF_MILLIS = 1_000;
-    private static final double BACKOFF_MULTIPLIER = 2;
-    private static final long MAX_BACKOFF_MILLIS = 4_000;
-
     // 약정이 사용 중이고 기준일이 약정 기간 안이며, 가장 최근 판정이 완제가 아닌 대출. 판정이 없는 새 대출은 정상으로 본다.
     @Bean
     @StepScope
     public RetryingJdbcPagingItemReader<Long> autoDebitRepaymentTargetReader(
-            DataSource dataSource, RetryTemplate autoDebitTargetReadRetryTemplate,
+            DataSource dataSource, RetryTemplate transientDatabaseRetryTemplate,
             @Value("#{jobParameters['businessDate']}") LocalDate businessDate) {
         MySqlPagingQueryProvider queryProvider = new MySqlPagingQueryProvider();
         queryProvider.setSelectClause("SELECT /*+ MAX_EXECUTION_TIME(" + QUERY_TIMEOUT_MILLIS + ") */ la.loan_account_id");
@@ -63,7 +50,7 @@ public class AutoDebitRepaymentReaderConfig {
                 + " LIMIT 1), :normal) <> :paidOff");
         queryProvider.setSortKeys(Map.of("loan_account_id", Order.ASCENDING));
 
-        RetryingJdbcPagingItemReader<Long> reader = new RetryingJdbcPagingItemReader<>(autoDebitTargetReadRetryTemplate);
+        RetryingJdbcPagingItemReader<Long> reader = new RetryingJdbcPagingItemReader<>(transientDatabaseRetryTemplate);
         reader.setName("autoDebitRepaymentTargetReader");
         reader.setDataSource(dataSource);
         reader.setPageSize(PAGE_SIZE);
@@ -75,24 +62,5 @@ public class AutoDebitRepaymentReaderConfig {
                 "paidOff", LoanJudgmentStatus.PAID_OFF.getId()));
         reader.setRowMapper(new SingleColumnRowMapper<>(Long.class));
         return reader;
-    }
-
-    // 다시 조회하면 나아질 수 있는 DB 오류만 다시 시도한다. SQL 문법 오류처럼 다시 해도 같은 오류는 바로 실패한다.
-    @Bean
-    public RetryTemplate autoDebitTargetReadRetryTemplate() {
-        return RetryTemplate.builder()
-                .maxAttempts(MAX_READ_ATTEMPTS)
-                .exponentialBackoff(INITIAL_BACKOFF_MILLIS, BACKOFF_MULTIPLIER, MAX_BACKOFF_MILLIS)
-                .retryOn(AutoDebitRepaymentReaderConfig::isTransientReadFailure)
-                .build();
-    }
-
-    private static boolean isTransientReadFailure(Throwable e) {
-        return e instanceof TransientDataAccessException
-                || e instanceof RecoverableDataAccessException
-                || e instanceof DataAccessResourceFailureException
-                || (e instanceof UncategorizedSQLException uncategorized
-                        && uncategorized.getSQLException() != null
-                        && uncategorized.getSQLException().getErrorCode() == MYSQL_QUERY_TIMEOUT_ERROR_CODE);
     }
 }
