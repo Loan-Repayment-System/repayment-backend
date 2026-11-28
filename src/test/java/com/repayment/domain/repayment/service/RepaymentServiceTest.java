@@ -17,7 +17,7 @@ import com.repayment.global.code.CollectionRequestStatus;
 import com.repayment.global.code.LoanJudgmentStatus;
 import com.repayment.global.code.LoanStatus;
 import com.repayment.global.code.RepaymentChannel;
-import com.repayment.global.util.TransientDatabaseErrors;
+import com.repayment.global.config.TransientDatabaseRetryConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -28,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.TransientDataAccessResourceException;
+import org.springframework.retry.backoff.NoBackOffPolicy;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.transaction.CannotCreateTransactionException;
 
@@ -100,11 +101,8 @@ class RepaymentServiceTest {
     void setUp() {
         Clock clock = Clock.fixed(NOW.atZone(ZoneId.of("Asia/Seoul")).toInstant(), ZoneId.of("Asia/Seoul"));
         // 운영과 같은 정책에서 시도 사이 대기만 뺀다.
-        RetryTemplate retryTemplate = RetryTemplate.builder()
-                .maxAttempts(3)
-                .noBackoff()
-                .retryOn(TransientDatabaseErrors::matches)
-                .build();
+        RetryTemplate retryTemplate = new TransientDatabaseRetryConfig().transientDatabaseRetryTemplate();
+        retryTemplate.setBackOffPolicy(new NoBackOffPolicy());
         repaymentService = new RepaymentService(collectionRequestService, collectionService, repaymentReflectionService,
                 loanAccountMapper, loanStatusJudgmentMapper, repayableAmountService, retryTemplate, clock);
     }

@@ -6,11 +6,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.support.RetryTemplate;
 
 /**
- * 집금 요청 저장(TX1)을 다시 시도하는 정책. 실패하면 집금 요청이 남지 않으므로 다시 해도 출금이 두 번 되지 않는다.
- * 일시적 DB 오류만 다시 하고, 업무 거절은 다시 해도 같은 결과라 바로 던진다.
+ * 일시적 DB 오류를 다시 시도하는 정책. 자동 이체 상환 Reader의 페이지 조회와 집금 요청 저장(TX1)이 함께 쓴다.
+ * 다시 해도 같은 오류가 나는 SQL 문법 오류나 업무 거절은 바로 던진다.
  */
 @Configuration
-public class CollectionRequestRetryConfig {
+public class TransientDatabaseRetryConfig {
 
     // 처음 시도를 포함한 최대 시도 횟수. 시도 사이에 1초, 2초를 기다린다.
     private static final int MAX_ATTEMPTS = 3;
@@ -19,7 +19,7 @@ public class CollectionRequestRetryConfig {
     private static final long MAX_BACKOFF_MILLIS = 4_000;
 
     @Bean
-    public RetryTemplate collectionRequestRetryTemplate() {
+    public RetryTemplate transientDatabaseRetryTemplate() {
         return RetryTemplate.builder()
                 .maxAttempts(MAX_ATTEMPTS)
                 .exponentialBackoff(INITIAL_BACKOFF_MILLIS, BACKOFF_MULTIPLIER, MAX_BACKOFF_MILLIS)

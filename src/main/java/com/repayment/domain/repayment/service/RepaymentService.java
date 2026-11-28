@@ -44,7 +44,7 @@ public class RepaymentService {
     private final LoanAccountMapper loanAccountMapper;
     private final LoanStatusJudgmentMapper loanStatusJudgmentMapper;
     private final RepayableAmountService repayableAmountService;
-    private final RetryTemplate collectionRequestRetryTemplate;
+    private final RetryTemplate transientDatabaseRetryTemplate;
     private final Clock clock;
 
     public RepaymentResultResponse repay(Long loanAccountId, BigDecimal amount, RepaymentChannel channel) {
@@ -53,7 +53,7 @@ public class RepaymentService {
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
 
         // 시도마다 새 트랜잭션이고, 실패한 시도는 롤백되어 남는 것이 없다.
-        CollectionRequestResponse request = collectionRequestRetryTemplate.execute(
+        CollectionRequestResponse request = transientDatabaseRetryTemplate.execute(
                 context -> collectionRequestService.create(loanAccountId, amount, channel, now));
         collect(request);
         reflect(request);
