@@ -46,8 +46,7 @@ public class CollectionRequestService {
     public CollectionRequestResponse create(Long loanAccountId, BigDecimal amount, RepaymentChannel channel,
                                             LocalDateTime sentAt) {
         LocalDate sendDate = sentAt.toLocalDate();
-        RepaymentEligibilityResponse eligibility =
-                repaymentEligibilityService.checkWithoutWaiting(loanAccountId, amount, sendDate);
+        RepaymentEligibilityResponse eligibility = repaymentEligibilityService.check(loanAccountId, amount, sendDate);
         rejectIfInProgress(loanAccountId);
         int telegramNo = telegramNoService.next(sendDate);
 

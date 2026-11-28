@@ -16,8 +16,6 @@ public interface LoanAccountMapper {
 
     Optional<RepaymentLoanAccountResponse> findRepaymentLoanAccountForUpdate(Long loanAccountId);
 
-    Optional<RepaymentLoanAccountResponse> findRepaymentLoanAccountForUpdateNowait(Long loanAccountId);
-
     Optional<LoanAccountStatusResponse> findLoanAccountStatus(Long loanAccountId);
 
     Optional<BigDecimal> findRemainingDebtTotal(Long loanAccountId);

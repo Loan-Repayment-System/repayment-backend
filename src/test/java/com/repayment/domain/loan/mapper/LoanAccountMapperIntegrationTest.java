@@ -226,29 +226,6 @@ class LoanAccountMapperIntegrationTest {
             // then
             assertThat(result).isEmpty();
         }
-    }
-
-    @Nested
-    @DisplayName("상환할 대출을 기다리지 않고 잠그고 조회할 때")
-    class 상환할_대출_NOWAIT_잠금_조회 {
-
-        @Test
-        @DisplayName("잠겨 있지 않으면 그 대출 id와 상환 계좌 은행코드 999, 계좌번호 110-000-000001을 가져온다")
-        void 상환_계좌를_가져온다() {
-            // given
-            long loanAccountId = insertLoanAccount("10000000");
-
-            // when
-            Optional<RepaymentLoanAccountResponse> result =
-                    loanAccountMapper.findRepaymentLoanAccountForUpdateNowait(loanAccountId);
-
-            // then
-            assertThat(result).hasValueSatisfying(loanAccount -> {
-                assertThat(loanAccount.getLoanAccountId()).isEqualTo(loanAccountId);
-                assertThat(loanAccount.getRepaymentBankCode()).isEqualTo("999");
-                assertThat(loanAccount.getRepaymentAccountNo()).isEqualTo("110-000-000001");
-            });
-        }
 
         @Test
         @DisplayName("다른 트랜잭션이 그 대출을 잠그고 있으면 기다리지 않고 1초 안에 잠금 획득 실패로 끝난다")
@@ -261,7 +238,7 @@ class LoanAccountMapperIntegrationTest {
             // when
             long startedAt = System.nanoTime();
             Future<?> other = executor.submit(() -> transactionTemplate.execute(
-                    status -> loanAccountMapper.findRepaymentLoanAccountForUpdateNowait(loanAccountId)));
+                    status -> loanAccountMapper.findRepaymentLoanAccountForUpdate(loanAccountId)));
             Throwable thrown = catchThrowable(other::get);
             Duration elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
             executor.shutdown();

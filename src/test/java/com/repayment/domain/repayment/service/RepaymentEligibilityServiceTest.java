@@ -31,10 +31,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("상환 가능 확인")
@@ -133,30 +131,6 @@ class RepaymentEligibilityServiceTest {
             // when & then
             assertThatThrownBy(() -> repaymentEligibilityService.check(LOAN_ACCOUNT_ID, new BigDecimal("1000"), TODAY))
                     .isInstanceOf(LoanAccountNotFoundException.class);
-        }
-    }
-
-    @Nested
-    @DisplayName("대출 잠금을 기다리지 않고 확인할 때")
-    class 기다리지_않는_확인 {
-
-        @Test
-        @DisplayName("일마감 완료, 갚을 금액 30,000원이면 NOWAIT 조회로 대출을 잠그고 기다리는 조회는 부르지 않고 통과한다")
-        void NOWAIT_조회로_잠근다() {
-            // given
-            givenDailyClosing(DailyClosingStatus.COMPLETED);
-            given(loanAccountMapper.findRepaymentLoanAccountForUpdateNowait(LOAN_ACCOUNT_ID))
-                    .willReturn(Optional.of(new RepaymentLoanAccountResponse(LOAN_ACCOUNT_ID, REPAYMENT_BANK_CODE, REPAYMENT_ACCOUNT_NO)));
-            givenLatestJudgment(LoanJudgmentStatus.NORMAL);
-            givenRepayableAmount(LoanJudgmentStatus.NORMAL, "30000");
-
-            // when
-            RepaymentEligibilityResponse result =
-                    repaymentEligibilityService.checkWithoutWaiting(LOAN_ACCOUNT_ID, new BigDecimal("30000"), TODAY);
-
-            // then
-            assertThat(result.getRepaymentAccountNo()).isEqualTo(REPAYMENT_ACCOUNT_NO);
-            then(loanAccountMapper).should(never()).findRepaymentLoanAccountForUpdate(anyLong());
         }
     }
 
