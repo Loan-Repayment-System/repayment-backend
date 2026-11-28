@@ -1,18 +1,21 @@
 package com.repayment.batch.writer;
 
 import com.repayment.domain.repayment.dto.response.AutoDebitTargetResponse;
+import com.repayment.domain.repayment.dto.response.RepaymentResultResponse;
 import com.repayment.domain.repayment.exception.AutoDebitRepaymentAbortedException;
+import com.repayment.domain.repayment.exception.CollectionResultPendingException;
 import com.repayment.domain.repayment.exception.InsufficientBalanceException;
 import com.repayment.domain.repayment.exception.RepaymentExceedsRepayableAmountException;
 import com.repayment.domain.repayment.exception.RepaymentInProgressException;
+import com.repayment.domain.repayment.exception.RepaymentReflectionPendingException;
 import com.repayment.domain.repayment.service.RepaymentService;
 import com.repayment.global.code.RepaymentChannel;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.batch.item.Chunk;
@@ -21,6 +24,7 @@ import org.springframework.transaction.CannotCreateTransactionException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.stream.LongStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -39,12 +43,18 @@ class AutoDebitRepaymentWriterTest {
     private static final BigDecimal AMOUNT_1 = new BigDecimal("100000");
     private static final BigDecimal AMOUNT_2 = new BigDecimal("200000");
     private static final BigDecimal AMOUNT_3 = new BigDecimal("300000");
+    private static final BigDecimal AMOUNT = new BigDecimal("100000");
+    private static final int PENDING_COLLECTION_LIMIT = 3;
 
     @Mock
     private RepaymentService repaymentService;
 
-    @InjectMocks
     private AutoDebitRepaymentWriter writer;
+
+    @BeforeEach
+    void setUp() {
+        writer = new AutoDebitRepaymentWriter(repaymentService, PENDING_COLLECTION_LIMIT);
+    }
 
     @Test
     @DisplayName("대출 1, 2를 받으면 차례로 각 갚을 금액을 자동 상환으로 상환한다")
@@ -181,6 +191,137 @@ class AutoDebitRepaymentWriterTest {
             // then
             assertThat(thrown).isNull();
             then(repaymentService).should().repay(2L, AMOUNT_2, RepaymentChannel.AUTO);
+        }
+    }
+
+    @Nested
+    @DisplayName("펌뱅킹 응답을 받지 못해 집금 결과 확인 중으로 끝날 때")
+    class 집금_결과_확인_중 {
+
+        // 실패 대처 case 5: 펌뱅킹 응답 없음이 이어지면 남은 대출의 집금 요청을 쌓지 않는다
+        @Test
+        @DisplayName("대출 1, 2, 3이 연속 결과 확인 중이면 3의 예외를 원인으로 담은 중단 예외를 던지고 대출 4는 상환하지 않는다")
+        void 연속_3건이면_Job을_멈춘다() {
+            // given
+            CollectionResultPendingException third = pending(3L);
+            givenPending(1L);
+            givenPending(2L);
+            given(repaymentService.repay(3L, AMOUNT, RepaymentChannel.AUTO)).willThrow(third);
+
+            // when
+            Throwable thrown = catchThrowable(() -> writer.write(targets(1, 4)));
+
+            // then
+            assertThat(thrown).isInstanceOf(AutoDebitRepaymentAbortedException.class).hasCause(third);
+            then(repaymentService).should(never()).repay(4L, AMOUNT, RepaymentChannel.AUTO);
+        }
+
+        @Test
+        @DisplayName("결과 확인 중 2건 뒤 대출 3이 성공하면 횟수를 되돌려, 뒤의 결과 확인 중 2건에도 5까지 상환한다")
+        void 성공하면_횟수를_되돌린다() {
+            // given
+            givenPending(1L);
+            givenPending(2L);
+            given(repaymentService.repay(3L, AMOUNT, RepaymentChannel.AUTO))
+                    .willReturn(RepaymentResultResponse.builder().build());
+            givenPending(4L);
+            givenPending(5L);
+
+            // when
+            Throwable thrown = catchThrowable(() -> writer.write(targets(1, 5)));
+
+            // then
+            assertThat(thrown).isNull();
+            then(repaymentService).should().repay(5L, AMOUNT, RepaymentChannel.AUTO);
+        }
+
+        @Test
+        @DisplayName("결과 확인 중 2건 뒤 대출 3이 잔액 부족으로 거절되면 횟수를 되돌려, 뒤의 결과 확인 중 2건에도 5까지 상환한다")
+        void 거절_응답이면_횟수를_되돌린다() {
+            // given
+            givenPending(1L);
+            givenPending(2L);
+            given(repaymentService.repay(3L, AMOUNT, RepaymentChannel.AUTO))
+                    .willThrow(new InsufficientBalanceException(LocalDate.of(2026, 10, 17), 3));
+            givenPending(4L);
+            givenPending(5L);
+
+            // when
+            Throwable thrown = catchThrowable(() -> writer.write(targets(1, 5)));
+
+            // then
+            assertThat(thrown).isNull();
+            then(repaymentService).should().repay(5L, AMOUNT, RepaymentChannel.AUTO);
+        }
+
+        @Test
+        @DisplayName("결과 확인 중 2건 뒤 대출 3이 반영 중이면 집금은 성공했으므로 횟수를 되돌려, 뒤의 결과 확인 중 2건에도 5까지 상환한다")
+        void 반영_중이면_횟수를_되돌린다() {
+            // given
+            givenPending(1L);
+            givenPending(2L);
+            given(repaymentService.repay(3L, AMOUNT, RepaymentChannel.AUTO))
+                    .willThrow(new RepaymentReflectionPendingException("TX3", new RuntimeException("reflect")));
+            givenPending(4L);
+            givenPending(5L);
+
+            // when
+            Throwable thrown = catchThrowable(() -> writer.write(targets(1, 5)));
+
+            // then
+            assertThat(thrown).isNull();
+            then(repaymentService).should().repay(5L, AMOUNT, RepaymentChannel.AUTO);
+        }
+
+        @Test
+        @DisplayName("결과 확인 중 2건 뒤 대출 3이 상환 진행 중이면 횟수를 그대로 두어, 대출 4의 결과 확인 중에서 멈추고 대출 5는 상환하지 않는다")
+        void 펌뱅킹_앞_단계_실패는_횟수를_그대로_둔다() {
+            // given
+            givenPending(1L);
+            givenPending(2L);
+            given(repaymentService.repay(3L, AMOUNT, RepaymentChannel.AUTO))
+                    .willThrow(new RepaymentInProgressException(3L));
+            givenPending(4L);
+
+            // when
+            Throwable thrown = catchThrowable(() -> writer.write(targets(1, 5)));
+
+            // then
+            assertThat(thrown).isInstanceOf(AutoDebitRepaymentAbortedException.class);
+            then(repaymentService).should(never()).repay(5L, AMOUNT, RepaymentChannel.AUTO);
+        }
+
+        @Test
+        @DisplayName("첫 chunk의 대출 1, 2와 두 번째 chunk의 대출 3이 결과 확인 중이면 3에서 멈추고 대출 4는 상환하지 않는다")
+        void 횟수가_chunk를_넘어_이어진다() {
+            // given
+            givenPending(1L);
+            givenPending(2L);
+            givenPending(3L);
+            writer.write(targets(1, 2));
+
+            // when
+            Throwable thrown = catchThrowable(() -> writer.write(targets(3, 4)));
+
+            // then
+            assertThat(thrown).isInstanceOf(AutoDebitRepaymentAbortedException.class);
+            then(repaymentService).should(never()).repay(4L, AMOUNT, RepaymentChannel.AUTO);
+        }
+
+        private void givenPending(Long loanAccountId) {
+            given(repaymentService.repay(loanAccountId, AMOUNT, RepaymentChannel.AUTO))
+                    .willThrow(pending(loanAccountId));
+        }
+
+        private CollectionResultPendingException pending(Long loanAccountId) {
+            return new CollectionResultPendingException("TX" + loanAccountId);
+        }
+
+        // 대출 from~to를 같은 금액으로 담는다.
+        private Chunk<AutoDebitTargetResponse> targets(long from, long to) {
+            return new Chunk<>(LongStream.rangeClosed(from, to)
+                    .mapToObj(id -> new AutoDebitTargetResponse(id, AMOUNT))
+                    .toList());
         }
     }
 }

@@ -56,6 +56,10 @@ firmbanking:
   # 응답을 받지 못한 집금을 다시 보내기 전 기다리는 시간. 여기에 0~절반 사이 난수를 더한다.
   retry-delay: 1s
 
+auto-debit-repayment:
+  # 집금 결과 확인 중이 이 건수만큼 연속이면 Job을 멈춘다.
+  pending-collection-limit: 3
+
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
   # 코드성 enum ↔ id 변환 (CodeEnumTypeHandler)

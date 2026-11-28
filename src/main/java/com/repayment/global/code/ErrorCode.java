@@ -72,7 +72,7 @@ public enum ErrorCode {
     REPAYMENT_IN_PROGRESS(HttpStatus.CONFLICT, "처리 중인 상환이 있습니다. 잠시 후 상환 내역을 확인해 주세요."),
     COLLECTION_REQUEST_NOT_COLLECTED(HttpStatus.INTERNAL_SERVER_ERROR, "집금 완료 상태가 아닌 집금 요청입니다."),
     AUTO_DEBIT_REPAYMENT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "자동 이체 상환을 완료하지 못했습니다."),
-    AUTO_DEBIT_REPAYMENT_ABORTED(HttpStatus.INTERNAL_SERVER_ERROR, "DB 장애로 자동 이체 상환을 중단했습니다."),
+    AUTO_DEBIT_REPAYMENT_ABORTED(HttpStatus.INTERNAL_SERVER_ERROR, "DB 장애나 펌뱅킹 응답 없음으로 자동 이체 상환을 중단했습니다."),
     ;
 
     private final HttpStatus status;
