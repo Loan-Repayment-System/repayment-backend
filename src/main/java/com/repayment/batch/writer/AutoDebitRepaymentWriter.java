@@ -1,11 +1,8 @@
 package com.repayment.batch.writer;
 
-import com.repayment.domain.loan.exception.LoanAlreadyPaidOffException;
 import com.repayment.domain.repayment.dto.response.AutoDebitTargetResponse;
 import com.repayment.domain.repayment.exception.AutoDebitRepaymentAbortedException;
-import com.repayment.domain.repayment.exception.NothingToRepayException;
 import com.repayment.domain.repayment.exception.RepaymentExceedsRepayableAmountException;
-import com.repayment.domain.repayment.exception.RepaymentInProgressException;
 import com.repayment.domain.repayment.service.RepaymentService;
 import com.repayment.global.code.RepaymentChannel;
 import com.repayment.global.util.TransientDatabaseErrors;
@@ -24,9 +21,8 @@ import java.math.BigDecimal;
  *
  * <ul>
  *   <li>갚을 금액 초과: Processor 계산 뒤 고객이 일부를 먼저 갚았다. 남은 갚을 금액으로 한 번 더 상환한다.</li>
- *   <li>잠금 획득 실패: 그 대출만의 문제라 다음 대출로 넘어간다.</li>
- *   <li>그 밖의 일시적 DB 오류: 상환 모듈이 다시 시도하고도 실패했으므로 Job을 멈춘다.</li>
- *   <li>갚을 금액 없음·완제·상환 진행 중: 기술 실패가 아니라 정보 로그만 남긴다.</li>
+ *   <li>잠금 획득 실패를 뺀 일시적 DB 오류: 상환 모듈이 다시 시도하고도 실패했으므로 Job을 멈춘다.</li>
+ *   <li>그 밖: 경고 로그를 남기고 다음 대출로 넘어간다.</li>
  * </ul>
  */
 @Slf4j
@@ -64,20 +60,15 @@ public class AutoDebitRepaymentWriter implements ItemWriter<AutoDebitTargetRespo
         }
     }
 
-    // 잠금 획득 실패도 일시적 DB 오류에 들어가므로 먼저 본다.
     private void handleFailure(Long loanAccountId, BigDecimal amount, RuntimeException e) {
-        if (e instanceof PessimisticLockingFailureException) {
-            log.warn("자동 이체 상환 대출 잠금 실패 loanAccountId={} amount={}", loanAccountId, amount, e);
-            return;
-        }
-        if (TransientDatabaseErrors.matches(e)) {
+        if (isDatabaseFailure(e)) {
             throw new AutoDebitRepaymentAbortedException(loanAccountId, e);
         }
-        if (e instanceof NothingToRepayException || e instanceof LoanAlreadyPaidOffException
-                || e instanceof RepaymentInProgressException) {
-            log.info("자동 이체 상환 건너뜀 loanAccountId={} amount={} reason={}", loanAccountId, amount, e.getMessage());
-            return;
-        }
         log.warn("자동 이체 상환 실패 loanAccountId={} amount={}", loanAccountId, amount, e);
+    }
+
+    // 잠금 획득 실패는 그 대출만의 문제라 Job을 멈추지 않는다. 일시적 DB 오류에 들어가므로 따로 뺀다.
+    private static boolean isDatabaseFailure(RuntimeException e) {
+        return TransientDatabaseErrors.matches(e) && !(e instanceof PessimisticLockingFailureException);
     }
 }
